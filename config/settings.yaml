@@ -1,0 +1,36 @@
+# Model settings. You rarely need to touch this file — overrides.yaml is the one to edit.
+
+team_id: 0        # <- your FPL team id (from your team page URL)
+
+# Free transfers for the next deadline. "auto" (recommended) replays your
+# ACTUAL transfer history from the API — what you really did, not what the
+# model advised. Set a number only to override.
+free_transfers: auto
+
+horizon: 8            # gameweeks to plan over
+decay: 0.85           # weight on each successive future GW
+bench_weights:        # value of a bench point vs a starting point (autosub likelihood)
+  gk: 0.03
+  outfield: [0.18, 0.09, 0.04]
+vice_weight: 0.05     # tiebreak value on vice-captain choice
+
+hit_threshold: 2.0    # a -4 hit must beat the best no-hit plan by this many
+                      # decayed xP or the free move is recommended instead
+
+# Option-value levers, calibrated by simulation on 29 Aug 2026 (see VALIDATION.md):
+ft_end_values: [2.3, 2.1, 1.7]  # worth of FTs still banked at the horizon's edge
+churn_penalty: 0.05             # tiny per-transfer cost; stops pointless late churn
+move_threshold: 1.75            # PER FT SPENT: a move must beat holding by this much
+                                # times the transfers it uses (the FT's reactive value,
+                                # pooled estimate ~2.0 across 48 two-stage trials)
+
+robustness_runs: 25   # perturbed re-solves for the robustness check
+player_noise: 0.15    # per-player model-error noise (std dev, multiplicative)
+gw_noise: 0.08        # per-player-per-GW noise (std dev, multiplicative)
+
+pool:                 # players carried into the solver, per position, by xP
+  GKP: 15
+  DEF: 45
+  MID: 55
+  FWD: 30
+robustness_max_runs: 100   # ceiling when conviction is ambiguous / final-window

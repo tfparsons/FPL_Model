@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Real Mudchute Information Architecture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+:root { color-scheme: light;
+  --bg:#F4F6F3; --card:#FFFFFF; --ink:#17221C; --ink2:#56635C; --line:#D3DAD4; --accent:#1E7A4B;
+  --accent-soft:#E3F1E8; --store:#F3EAD3; --store-ink:#6B4E0F; --code:#EDF1EC; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark;
+  --bg:#0F1512; --card:#161E19; --ink:#E6ECE7; --ink2:#9DAAA2; --line:#2A3530; --accent:#3FBF7F;
+  --accent-soft:#1A3327; --store:#3A2E14; --store-ink:#E2BD6A; --code:#1D2722; } }
+:root[data-theme="dark"] { color-scheme: dark;
+  --bg:#0F1512; --card:#161E19; --ink:#E6ECE7; --ink2:#9DAAA2; --line:#2A3530; --accent:#3FBF7F;
+  --accent-soft:#1A3327; --store:#3A2E14; --store-ink:#E2BD6A; --code:#1D2722; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:16px/1.55 "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+.page { max-width: 1180px; margin:0 auto; padding: 32px 20px 80px; display:grid; grid-template-columns: 1fr; gap: 0 40px; }
+@media (min-width: 1100px) { .page { grid-template-columns: 200px minmax(0, 880px); } .toc { position: sticky; top: 24px; align-self:start; }
+  .hd, section { grid-column: 2; } .toc { grid-column: 1; grid-row: 1 / span 20; } }
+.hd { margin-bottom: 28px; }
+.eyebrow { font: 500 12px/1 "IBM Plex Mono", monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin:0 0 10px; }
+h1 { font: 600 40px/1.05 "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif; margin:0 0 14px; text-wrap:balance; letter-spacing:-.01em; }
+.lede { font-size: 18px; max-width: 62ch; margin:0 0 8px; }
+.meta { color:var(--ink2); font-size:14px; margin:0; }
+.toc { display:flex; flex-wrap:wrap; gap:6px 14px; margin: 0 0 28px; font: 500 13px/1.4 "IBM Plex Mono", monospace; }
+.toc a { color:var(--ink2); text-decoration:none; border-bottom:1px solid transparent; }
+.toc a:hover, .toc a:focus-visible { color:var(--accent); border-color:var(--accent); outline:none; }
+@media (min-width:1100px) { .toc { flex-direction:column; gap:8px; } }
+section { margin: 0 0 44px; padding-top: 8px; border-top: 1px solid var(--line); }
+h2 { font: 600 26px/1.15 "IBM Plex Sans Condensed", sans-serif; margin: 18px 0 14px; display:flex; align-items:baseline; gap:12px; }
+h2 span { font: 500 13px/1 "IBM Plex Mono", monospace; color:var(--accent); background:var(--accent-soft); padding:4px 7px; border-radius:4px; }
+h3 { font: 600 18px/1.2 "IBM Plex Sans Condensed", sans-serif; margin: 26px 0 8px; }
+.file { font: 400 12px/1 "IBM Plex Mono", monospace; color:var(--ink2); margin-left:8px; }
+p { max-width: 68ch; }
+figure { margin: 8px 0 18px; background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 14px 14px 10px; overflow-x:auto; }
+figure svg { max-width:100%; height:auto; display:block; color: var(--ink); font-family: "IBM Plex Mono", monospace; min-width: 640px; }
+figcaption { font-size: 14px; color: var(--ink2); margin-top: 10px; max-width: 80ch; }
+figcaption b { color: var(--ink); }
+.nd { fill: var(--card); stroke: currentColor; stroke-width: 1.2; }
+.nd.st { fill: var(--store); } .nd.ex { stroke-dasharray: 4 3; fill: var(--bg); }
+.nd.dc { fill: var(--bg); } .nd.hi { stroke: var(--accent); stroke-width: 2; fill: var(--accent-soft); }
+svg text { fill: currentColor; font-size: 12px; } svg .t1 { font-weight: 500; } svg .t2 { font-size: 10.5px; fill: var(--ink2); }
+.ed { fill:none; stroke: currentColor; stroke-width: 1.2; } .ed.dash { stroke-dasharray: 4 3; } .ed.hi { stroke: var(--accent); stroke-width: 2; }
+.el { font-size: 10.5px; fill: var(--ink2); }
+.spec { display:grid; grid-template-columns: 160px 1fr; gap: 10px 18px; margin: 12px 0; font-size: 15px; }
+.spec dt { font: 500 13px/1.5 "IBM Plex Mono", monospace; color:var(--ink2); padding-top:2px; }
+.spec dd { margin:0; max-width: 72ch; }
+@media (max-width: 640px) { .spec { grid-template-columns: 1fr; gap: 2px 0; } .spec dd { margin-bottom: 10px; } }
+pre.f { background: var(--code); border-radius: 6px; padding: 12px 14px; font: 13px/1.6 "IBM Plex Mono", monospace; overflow-x:auto; margin: 10px 0 14px; }
+code { font: 13.5px "IBM Plex Mono", monospace; background: var(--code); padding: 1px 5px; border-radius: 3px; }
+.co { border-left: 3px solid var(--accent); background: var(--card); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; max-width: 72ch; font-size:15px; }
+.co b { display:block; font: 600 14px/1.3 "IBM Plex Sans Condensed", sans-serif; margin-bottom: 4px; }
+.co.gotcha { border-color: var(--store-ink); }
+.co p { margin: 0; }
+.tw { overflow-x:auto; } table { border-collapse: collapse; width:100%; font-size: 14px; }
+th { text-align:left; font: 500 12px/1.4 "IBM Plex Mono", monospace; color:var(--ink2); border-bottom: 2px solid var(--line); padding: 6px 8px; }
+td { border-bottom: 1px solid var(--line); padding: 7px 8px; vertical-align: top; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style></head>
+<body><div class="page">
+<header class="hd">
+  <p class="eyebrow">Real Mudchute · system reference</p>
+  <h1>Information architecture</h1>
+  <p class="lede">How the Real Mudchute FPL optimiser moves data and makes its decisions — every pipeline drawn, every rule of thumb written down with the number it uses. For reading alongside the code in <code>src/mudchute/</code>.</p>
+  <p class="meta">Matches the repo as of 1 Sep 2026 (GW3 of 2026/27 · model v1.5). Files in <code>data/processed/</code> are committed so any run is reproducible from the repo alone.</p>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <a href="#map">1 · System map</a><a href="#data">2 · Data layer</a><a href="#xp">3 · xP engine</a>
+  <a href="#solver">4 · Solver</a><a href="#checks">5 · Checks & timing</a><a href="#sched">6 · Scheduling</a>
+  <a href="#track">7 · Track record</a><a href="#files">8 · File map</a><a href="#limits">9 · Limits & next</a>
+</nav>
+
+<section id="map"><h2><span>1</span>System map</h2>
+<figure><svg viewBox="0 0 1160 410" role="img" aria-label="System map: data flows from the FPL API through the update step, the xP engine, the solver and the site builder to Vercel; a GitHub Action drives it on a schedule.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+<rect class="nd ex" x="20" y="40" width="170" height="56" rx="6"/>
+<text class="t1" x="105.0" y="65" text-anchor="middle">FPL API</text>
+<text class="t2" x="105.0" y="79" text-anchor="middle">bootstrap · fixtures · entry</text>
+<rect class="nd ex" x="20" y="130" width="170" height="56" rx="6"/>
+<text class="t1" x="105.0" y="155" text-anchor="middle">vaastav GitHub</text>
+<text class="t2" x="105.0" y="169" text-anchor="middle">2024-25 · 2025-26 CSVs</text>
+<rect class="nd" x="230" y="85" width="130" height="56" rx="6"/>
+<text class="t1" x="295.0" y="110" text-anchor="middle">make update</text>
+<text class="t2" x="295.0" y="124" text-anchor="middle">api.py</text>
+<rect class="nd st" x="420" y="40" width="150" height="56" rx="6"/>
+<text class="t1" x="495.0" y="65" text-anchor="middle">data/raw/&lt;stamp&gt;/</text>
+<text class="t2" x="495.0" y="79" text-anchor="middle">snapshot (gitignored)</text>
+<rect class="nd st" x="420" y="130" width="150" height="56" rx="6"/>
+<text class="t1" x="495.0" y="155" text-anchor="middle">data/history/</text>
+<text class="t2" x="495.0" y="169" text-anchor="middle">season CSVs (gitignored)</text>
+<rect class="nd" x="630" y="85" width="130" height="56" rx="6"/>
+<text class="t1" x="695.0" y="110" text-anchor="middle">xP engine</text>
+<text class="t2" x="695.0" y="124" text-anchor="middle">strengths · minutes · xp</text>
+<rect class="nd st" x="820" y="85" width="150" height="56" rx="6"/>
+<text class="t1" x="895.0" y="110" text-anchor="middle">xp_matrix.csv</text>
+<text class="t2" x="895.0" y="124" text-anchor="middle">player × GW (committed)</text>
+<rect class="nd" x="630" y="220" width="130" height="56" rx="6"/>
+<text class="t1" x="695.0" y="245" text-anchor="middle">solver + checks</text>
+<text class="t2" x="695.0" y="259" text-anchor="middle">pipeline.py · solver.py</text>
+<rect class="nd st" x="820" y="220" width="150" height="56" rx="6"/>
+<text class="t1" x="895.0" y="245" text-anchor="middle">plan.json</text>
+<text class="t2" x="895.0" y="259" text-anchor="middle">+ history.jsonl</text>
+<rect class="nd" x="1010" y="220" width="130" height="56" rx="6"/>
+<text class="t1" x="1075.0" y="245" text-anchor="middle">site builder</text>
+<text class="t2" x="1075.0" y="259" text-anchor="middle">site.py</text>
+<rect class="nd st" x="1010" y="85" width="130" height="56" rx="6"/>
+<text class="t1" x="1075.0" y="110" text-anchor="middle">site/ + report.html</text>
+<text class="t2" x="1075.0" y="124" text-anchor="middle">committed</text>
+<rect class="nd ex" x="1010" y="330" width="130" height="56" rx="6"/>
+<text class="t1" x="1075.0" y="355" text-anchor="middle">Vercel</text>
+<text class="t2" x="1075.0" y="369" text-anchor="middle">static deploy</text>
+<rect class="nd dc" x="230" y="330" width="130" height="56" rx="14"/>
+<text class="t1" x="295.0" y="355" text-anchor="middle">GitHub Action</text>
+<text class="t2" x="295.0" y="369" text-anchor="middle">every 3h · due.py</text>
+<rect class="nd" x="420" y="330" width="180" height="56" rx="6"/>
+<text class="t1" x="510.0" y="355" text-anchor="middle">settle outcomes</text>
+<text class="t2" x="510.0" y="369" text-anchor="middle">history.py → outcomes.json</text>
+<path class="ed" d="M190 68.0 L210.0 68.0 L210.0 113.0 L230 113.0" marker-end="url(#a)"/>
+<text class="el" x="194" y="62" text-anchor="start">GET, polite UA</text>
+<path class="ed" d="M190 158.0 L210.0 158.0 L210.0 113.0 L230 113.0" marker-end="url(#a)"/>
+<text class="el" x="194" y="152" text-anchor="start">once, cached</text>
+<path class="ed" d="M360 113.0 L390.0 113.0 L390.0 68.0 L420 68.0" marker-end="url(#a)"/>
+<text class="el" x="414" y="62" text-anchor="end">writes</text>
+<path class="ed" d="M360 113.0 L390.0 113.0 L390.0 158.0 L420 158.0" marker-end="url(#a)"/>
+<text class="el" x="414" y="152" text-anchor="end">writes</text>
+<path class="ed" d="M570 68.0 L600.0 68.0 L600.0 113.0 L630 113.0" marker-end="url(#a)"/>
+<text class="el" x="574" y="62" text-anchor="start">reads</text>
+<path class="ed" d="M570 158.0 L600.0 158.0 L600.0 113.0 L630 113.0" marker-end="url(#a)"/>
+<text class="el" x="574" y="152" text-anchor="start">priors</text>
+<path class="ed" d="M760 113.0 L820 113.0" marker-end="url(#a)"/>
+<text class="el" x="790" y="107" text-anchor="middle">writes</text>
+<path class="ed hi" d="M820 113.0 L790.0 113.0 L790.0 248.0 L760 248.0" marker-end="url(#a)"/>
+<text class="el" x="796" y="184" text-anchor="start">only model input</text>
+<path class="ed" d="M760 248.0 L820 248.0" marker-end="url(#a)"/>
+<text class="el" x="790" y="242" text-anchor="middle">writes</text>
+<path class="ed" d="M970 248.0 L1010 248.0" marker-end="url(#a)"/>
+<text class="el" x="990" y="242" text-anchor="middle">reads</text>
+<path class="ed" d="M1075.0 220 L1075.0 141" marker-end="url(#a)"/>
+<text class="el" x="1081" y="204" text-anchor="start">writes</text>
+<path class="ed dash" d="M1075.0 141 L1075.0 330" marker-end="url(#a)"/>
+<text class="el" x="1081" y="192" text-anchor="start">git push → redeploy</text>
+<path class="ed dash" d="M295.0 330 L295.0 141" marker-end="url(#a)"/>
+<text class="el" x="301" y="287" text-anchor="start">runs</text>
+<path class="ed" d="M360 113.0 L390.0 113.0 L390.0 358.0 L420 358.0" marker-end="url(#a)"/>
+<text class="el" x="414" y="352" text-anchor="end">after pull</text>
+</svg><figcaption><b>The whole system on one screen.</b> Boxes with a tinted fill are files on disk; dashed boxes are things outside the repo. The single most important arrow is the highlighted one: <code>xp_matrix.csv</code> is the <em>only</em> thing the solver reads from the model, which is what keeps the two halves independently replaceable.</figcaption></figure>
+<p>Four principles shape everything: <b>the xP matrix is the only contract between model and solver</b>; <b>every raw pull is a timestamped snapshot</b> so a run can be replayed; <b>the repo is the database</b> — there is no server, the scheduler commits its outputs and Vercel serves static files; and <b>the model is versioned</b> — every run is stamped, so its recommendations can be audited against the exact rules that produced them.</p>
+</section>
+
+<section id="data"><h2><span>2</span>Data layer</h2>
+<dl class='spec'><dt>Pulled every update</dt><dd><code>bootstrap-static</code> (600 players: season totals, xG/xA, status, price projections), <code>fixtures</code> (380, with kickoff and GW), <code>entry/{team_id}</code>, <code>…/history</code> (chips), <code>…/transfers</code>, and the picks for the latest started GW. Each goes to <code>data/raw/&lt;UTC stamp&gt;/</code>; <code>data/raw/LATEST</code> points at the newest; the last 10 snapshots are kept.</dd><dt>Pulled once</dt><dd>vaastav's <code>2025-26</code> and <code>2024-25</code> season CSVs (fixtures, teams, players_raw, merged_gw) into <code>data/history/</code>. Players are joined across seasons on the stable FPL <code>code</code>, never the per-season id.</dd><dt>Selling prices</dt><dd>Replayed from the transfers endpoint: purchase price = cost at the transfer that brought the player in, or season-start price if owned since GW1; sell = purchase + ⌊profit / 2⌋ in £0.1m units. The API won't reveal this without login, so it's reconstructed.</dd><dt>Free transfers</dt><dd>Not exposed unauthenticated, so the ledger is <em>replayed</em> from the actual transfer history: 1 FT ahead of GW2, each deadline consumes what was used (wildcard and free-hit weeks consume nothing) and banks +1, capped at the limit the API's game settings declare. Ignore a recommendation and the count still comes out right.</dd><dt>Confirmed transfers</dt><dd>The public API hides transfers made mid-window until the deadline passes, so moves already made are declared in <code>config/confirmed.yaml</code> (one line per transfer). The loader applies them to the squad, bank, selling prices and FT count before anything else runs — confirmed beats suggested, everywhere. Entries for past gameweeks are ignored once the API catches up.</dd><dt>Politeness</dt><dd>Browser-style User-Agent, 0.5s between calls, three retries with backoff. The live-points endpoint for a finished GW is cached permanently because it never changes.</dd></dl>
+</section>
+
+<section id="xp"><h2><span>3</span>xP engine</h2>
+<figure><svg viewBox="0 0 1220 300" role="img" aria-label="xP engine: three sub-models (minutes, rate blending, team strengths) feed a per-fixture points calculation that is summed per gameweek.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+<rect class="nd st" x="20" y="20" width="180" height="56" rx="6"/>
+<text class="t1" x="110.0" y="45" text-anchor="middle">bootstrap per player</text>
+<text class="t2" x="110.0" y="59" text-anchor="middle">season mins, starts, xG, xA, status</text>
+<rect class="nd st" x="20" y="100" width="180" height="56" rx="6"/>
+<text class="t1" x="110.0" y="125" text-anchor="middle">last-season rates</text>
+<text class="t2" x="110.0" y="139" text-anchor="middle">by stable player code</text>
+<rect class="nd st" x="20" y="180" width="180" height="56" rx="6"/>
+<text class="t1" x="110.0" y="205" text-anchor="middle">fixtures + results</text>
+<text class="t2" x="110.0" y="219" text-anchor="middle">this season + 2025-26</text>
+<rect class="nd" x="290" y="60" width="160" height="56" rx="6"/>
+<text class="t1" x="370.0" y="85" text-anchor="middle">minutes model</text>
+<text class="t2" x="370.0" y="99" text-anchor="middle">minutes.py</text>
+<rect class="nd" x="290" y="140" width="160" height="56" rx="6"/>
+<text class="t1" x="370.0" y="165" text-anchor="middle">rate blending</text>
+<text class="t2" x="370.0" y="179" text-anchor="middle">xp.build_rates</text>
+<rect class="nd" x="290" y="220" width="160" height="56" rx="6"/>
+<text class="t1" x="370.0" y="245" text-anchor="middle">team strengths</text>
+<text class="t2" x="370.0" y="259" text-anchor="middle">strengths.py</text>
+<rect class="nd st" x="540" y="60" width="160" height="56" rx="6"/>
+<text class="t1" x="620.0" y="85" text-anchor="middle">p_start · p60</text>
+<text class="t2" x="620.0" y="99" text-anchor="middle">p_appear · xmins</text>
+<rect class="nd st" x="540" y="140" width="160" height="56" rx="6"/>
+<text class="t1" x="620.0" y="165" text-anchor="middle">per-90 rates</text>
+<text class="t2" x="620.0" y="179" text-anchor="middle">xG, xA, saves, bonus…</text>
+<rect class="nd st" x="540" y="220" width="160" height="56" rx="6"/>
+<text class="t1" x="620.0" y="245" text-anchor="middle">fixture λ</text>
+<text class="t2" x="620.0" y="259" text-anchor="middle">goals for / against</text>
+<rect class="nd hi" x="790" y="140" width="160" height="56" rx="6"/>
+<text class="t1" x="870.0" y="165" text-anchor="middle">per-fixture xP</text>
+<text class="t2" x="870.0" y="179" text-anchor="middle">9 components</text>
+<rect class="nd st" x="1040" y="140" width="160" height="56" rx="6"/>
+<text class="t1" x="1120.0" y="165" text-anchor="middle">Σ fixtures in GW</text>
+<text class="t2" x="1120.0" y="179" text-anchor="middle">→ xp_matrix.csv</text>
+<path class="ed" d="M200 48.0 L245.0 48.0 L245.0 88.0 L290 88.0" marker-end="url(#a)"/>
+<path class="ed" d="M200 128.0 L245.0 128.0 L245.0 88.0 L290 88.0" marker-end="url(#a)"/>
+<path class="ed" d="M200 48.0 L245.0 48.0 L245.0 168.0 L290 168.0" marker-end="url(#a)"/>
+<path class="ed" d="M200 128.0 L245.0 128.0 L245.0 168.0 L290 168.0" marker-end="url(#a)"/>
+<path class="ed" d="M200 208.0 L245.0 208.0 L245.0 248.0 L290 248.0" marker-end="url(#a)"/>
+<path class="ed" d="M450 88.0 L540 88.0" marker-end="url(#a)"/>
+<path class="ed" d="M450 168.0 L540 168.0" marker-end="url(#a)"/>
+<path class="ed" d="M450 248.0 L540 248.0" marker-end="url(#a)"/>
+<path class="ed" d="M700 88.0 L745.0 88.0 L745.0 168.0 L790 168.0" marker-end="url(#a)"/>
+<text class="el" x="784" y="162" text-anchor="end">minutes share</text>
+<path class="ed" d="M700 168.0 L790 168.0" marker-end="url(#a)"/>
+<path class="ed" d="M700 248.0 L745.0 248.0 L745.0 168.0 L790 168.0" marker-end="url(#a)"/>
+<text class="el" x="751" y="212" text-anchor="start">att / conc multipliers</text>
+<path class="ed" d="M950 168.0 L1040 168.0" marker-end="url(#a)"/>
+<text class="el" x="995" y="162" text-anchor="middle">blank = 0 · double = 2 fixtures</text>
+</svg><figcaption><b>How a player's xP is built.</b> Three independent sub-models each produce one ingredient; the per-fixture combination is where they meet. A double gameweek is simply two fixtures summed, a blank is zero — no special cases downstream. Bootstrap feeds both the minutes model (starts, status) and the rates (this season's xG/xA); last season feeds both as the prior.</figcaption></figure>
+<h3>3a · Minutes model <span class="file">minutes.py</span></h3>
+<p>The load-bearing component. Three quantities per player per fixture:</p>
+<pre class='f'>avail       = 1.0 (a) · chance/100 (d, default 0.75) · chance/100 or 0.1 (i) · 0 (s, u)
+prior       = ½·late-season start rate + ½·full-season start rate   (last season)
+              fallback: price prior (≥7.0m → 0.78, ≥5.5m → 0.60, ≥4.8m → 0.45, else 0.30)
+              floor 0.90 if price ≥ 10.0m, fit, and ≥2000 mins last season
+w           = n / (n + 1.5)          n = this season&#x27;s games the team has started
+p_start     = avail · clip(w · starts/n + (1 − w) · prior, 0, 0.97)
+p_appear    = avail · (base + (1 − base) · sub_prob)      sub_prob from last season, default 0.15
+p60         = p_start · P(60+ | start)                   last season, default 0.85 (GK 0.99)
+xmins       = p_start · mins_per_start + (p_appear − p_start) · 18</pre>
+<aside class='co why'><b>Why flags are multipliers, not filters</b><p>A 75%-flagged player keeps 75% of his xP. The solver then weighs him against the alternatives instead of the model pre-deciding. Never hard-drop.</p></aside>
+
+<h3>3b · Rate blending <span class="file">xp.build_rates</span></h3>
+<pre class='f'>rate90 = (last · w_last + current · mins_cur + prior · 600) / (w_last + mins_cur + 600)
+         w_last = min(mins_last, 3000) · 0.6      prior = position median of regulars (≥1200 mins)
+         prior  = position 80th percentile for players priced ≥ 8.0m     bonus uses 900 pseudo-mins
+defcon_rate = (hits · apps60 + prior · 8) / (apps60 + 8)   hit = count ≥ 10 (DEF) or ≥ 12 (MID/FWD) in a 60+ min game</pre>
+<aside class='co gotcha'><b>The defensive-contribution trap</b><p>In the historical data <code>defensive_contribution</code> is the raw action <em>count</em> (Caicedo: 12, 7, 23…), not the 2-point award. Treating it as points put defensive midfielders on 14 xP a week. The model estimates the probability of clearing the threshold instead.</p></aside>
+
+<h3>3c · Team strengths & fixture λ <span class="file">strengths.py</span></h3>
+<pre class='f'>att_home = 1 + 0.7 · (GF_home / L_home − 1)        (and att_away, def_home, def_away alike)
+promoted side: att 0.80, def 1.20     blend toward this season: w = n / (n + 10)
+λ_home = L_home · att_home[h] · def_away[a]         λ_away = L_away · att_away[a] · def_home[h]
+att_mult = λ_for / team baseline goals              conc_mult = λ_against / team baseline conceded</pre>
+<p>FPL's own strength ratings are zeroed at the start of a season, so strengths come from last season's goal rates (shrunk 30% toward average) and blend toward live results as games accumulate.</p>
+
+<h3>3d · Points per fixture <span class="file">xp.build_xp</span></h3>
+<pre class='f'>share      = xmins / 90
+appearance = p60 · 2 + (p_appear − p60) · 1
+goals      = share · xG90 · att_mult · {{GK 10, DEF 6, MID 5, FWD 4}}
+assists    = share · xA90 · att_mult · 3
+cs         = p60 · e^(−λ_against) · {{GK 4, DEF 4, MID 1}}
+gc         = − share · E[⌊k/2⌋],  k ~ Poisson(λ_against)      (GK, DEF)
+saves      = share · saves90 / 3 · conc_mult                    (GK)
+defcon     = p60 · defcon_rate · 2                               (outfield)
+bonus      = share · bonus90        cards = − share · yellow90
+xP[GW]     = Σ over the team&#x27;s fixtures in that GW</pre>
+<p>Output: <code>xp_matrix.csv</code> (one row per player, one column per GW in the horizon, plus minutes-model columns) and <code>xp_components.csv</code> (the nine components per player per GW, used for the "drivers" line in the report).</p>
+</section>
+
+<section id="solver"><h2><span>4</span>Solver <span class="file">solver.py</span></h2>
+<figure><svg viewBox="0 0 1140 300" role="img" aria-label="Solver per gameweek: last squad plus transfers gives this squad, from which lineup, captain and bench are chosen; transfers also update the free-transfer ledger and the bank; all feed one decayed objective.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+<rect class="nd st" x="20" y="100" width="140" height="56" rx="6"/>
+<text class="t1" x="90.0" y="125" text-anchor="middle">squad[t−1]</text>
+<text class="t2" x="90.0" y="139" text-anchor="middle">15 players</text>
+<rect class="nd dc" x="230" y="100" width="150" height="56" rx="14"/>
+<text class="t1" x="305.0" y="125" text-anchor="middle">transfers in/out</text>
+<text class="t2" x="305.0" y="139" text-anchor="middle">binary per player</text>
+<rect class="nd st" x="500" y="100" width="150" height="56" rx="6"/>
+<text class="t1" x="575.0" y="125" text-anchor="middle">squad[t]</text>
+<text class="t2" x="575.0" y="139" text-anchor="middle">2-5-5-3 · ≤3/club</text>
+<rect class="nd" x="720" y="40" width="180" height="56" rx="6"/>
+<text class="t1" x="810.0" y="65" text-anchor="middle">lineup[t] (11)</text>
+<text class="t2" x="810.0" y="79" text-anchor="middle">GK 1 · DEF 3+ · MID 2+ · FWD 1+</text>
+<rect class="nd" x="720" y="120" width="180" height="56" rx="6"/>
+<text class="t1" x="810.0" y="145" text-anchor="middle">captain[t]</text>
+<text class="t2" x="810.0" y="159" text-anchor="middle">⊂ lineup, ×2</text>
+<rect class="nd" x="720" y="200" width="180" height="56" rx="6"/>
+<text class="t1" x="810.0" y="225" text-anchor="middle">bench (post-hoc)</text>
+<text class="t2" x="810.0" y="239" text-anchor="middle">ordered by xP</text>
+<rect class="nd dc" x="230" y="220" width="150" height="56" rx="14"/>
+<text class="t1" x="305.0" y="245" text-anchor="middle">FT ledger</text>
+<text class="t2" x="305.0" y="259" text-anchor="middle">used + paid + wc = n</text>
+<rect class="nd st" x="500" y="220" width="150" height="56" rx="6"/>
+<text class="t1" x="575.0" y="245" text-anchor="middle">bank[t] ≥ 0</text>
+<text class="t2" x="575.0" y="259" text-anchor="middle">sell − buy</text>
+<rect class="nd hi" x="960" y="120" width="160" height="56" rx="6"/>
+<text class="t1" x="1040.0" y="145" text-anchor="middle">objective</text>
+<text class="t2" x="1040.0" y="159" text-anchor="middle">Σ 0.85^t · points</text>
+<path class="ed" d="M160 128.0 L230 128.0" marker-end="url(#a)"/>
+<path class="ed" d="M380 128.0 L500 128.0" marker-end="url(#a)"/>
+<text class="el" x="440" y="122" text-anchor="middle">= prev + in − out</text>
+<path class="ed" d="M650 128.0 L685.0 128.0 L685.0 68.0 L720 68.0" marker-end="url(#a)"/>
+<path class="ed" d="M650 128.0 L685.0 128.0 L685.0 148.0 L720 148.0" marker-end="url(#a)"/>
+<path class="ed" d="M650 128.0 L685.0 128.0 L685.0 228.0 L720 228.0" marker-end="url(#a)"/>
+<path class="ed" d="M305.0 156 L305.0 220" marker-end="url(#a)"/>
+<text class="el" x="311" y="176" text-anchor="start">count</text>
+<path class="ed" d="M380 128.0 L440.0 128.0 L440.0 248.0 L500 248.0" marker-end="url(#a)"/>
+<text class="el" x="446" y="192" text-anchor="start">prices</text>
+<path class="ed" d="M900 68.0 L930.0 68.0 L930.0 148.0 L960 148.0" marker-end="url(#a)"/>
+<text class="el" x="936" y="112" text-anchor="start">(1−w)·xP</text>
+<path class="ed" d="M900 148.0 L960 148.0" marker-end="url(#a)"/>
+<text class="el" x="930" y="142" text-anchor="middle">+xP</text>
+<path class="ed" d="M900 228.0 L930.0 228.0 L930.0 148.0 L960 148.0" marker-end="url(#a)"/>
+<text class="el" x="936" y="192" text-anchor="start">w·xP</text>
+<path class="ed dash" d="M380 248.0 L670.0 248.0 L670.0 148.0 L960 148.0" marker-end="url(#a)"/>
+<text class="el" x="384" y="242" text-anchor="start">−4 per paid</text>
+</svg><figcaption><b>One gameweek inside the MILP.</b> The same structure repeats eight times, chained through <code>squad[t]</code>, <code>ft[t]</code> and <code>bank[t]</code>. HiGHS solves all eight at once, which is what lets it bank a transfer now for a double later.</figcaption></figure>
+<dl class='spec'><dt>Pool</dt><dd>Your 15 + the top 15 GK / 45 DEF / 55 MID / 30 FWD by 8-GW xP + the 6 cheapest likely starters per position (bench fodder). ~155 players, 8 GWs.</dd><dt>Decisions</dt><dd>Binary <code>squad, lineup, captain, transfer_in, transfer_out</code> per player per GW; integer <code>ft, used_ft, paid, free_wc</code> per GW; continuous <code>bank</code>. Vice-captain and bench order are chosen after solving — provably optimal given the squad/lineup split, and 6,000 fewer binaries.</dd><dt>Hard rules</dt><dd>15 players as 2-5-5-3; ≤3 per club; 11 starters with GK 1, DEF 3–5, MID 2–5, FWD 1–3; captain in lineup; ≤20 transfers per GW; bank ≥ 0 every GW.</dd><dt>Money</dt><dd>Buy at <code>now_cost</code>; sell at the reconstructed selling price for the players you own, at <code>now_cost</code> for anyone bought during the horizon. Prices are held static across the horizon.</dd><dt>Free transfers</dt><dd><code>used_ft + paid + free_wc = transfers</code>, <code>used_ft ≤ ft</code>, <code>ft[t+1] ≤ ft[t] − used_ft + 1</code>, capped at the API-declared limit (currently 5). <code>free_wc</code> is only allowed in a wildcard week.</dd><dt>Objective</dt><dd><code>Σ_t 0.85^t · [ Σ_p xP·((1−w)·lineup + w·squad + captain) − 4·paid ]</code> with bench weight <code>w</code> = 0.03 for the GK, 0.10 average for outfield (from 0.18 / 0.09 / 0.04 per slot) — plus the option-value terms below.</dd><dt>Option value</dt><dd>Three terms teach the solver that a spare transfer is worth something: FTs still banked at the horizon's edge earn terminal bonuses (2.3 / 2.1 / 1.7 decayed xP for the first three); planned future moves carry a tax of 1.75 decayed xP per transfer; and a small churn penalty (0.05 per change) breaks ties toward stability. All three were calibrated by simulation — two-stage experiments measuring what a banked transfer is actually worth when news breaks — and are settings, not hard-coded.</dd><dt>Chips</dt><dd>Wildcard, Bench Boost and Triple Captain are extra solves with the chip allowed once anywhere in the horizon; the gain vs baseline and the GW chosen are reported, never auto-played. Free Hit is approximated by a single-GW re-pick at current squad value.</dd><dt>Overrides</dt><dd><code>lock</code> → squad = 1 all horizon; <code>ban</code> → squad = 0; <code>force_transfers</code> → exactly N in the first GW; <code>no_hits</code> → paid = 0. Names resolve case-insensitively to FPL web names.</dd><dt>Tolerances</dt><dd>Baseline: 0.2% gap, 120s. Chips: 0.5%, 60s. Robustness: 2%, 25s. HiGHS via <code>highspy</code>, no commercial solver.</dd></dl>
+</section>
+
+<section id="checks"><h2><span>5</span>Checks & timing <span class="file">pipeline.py · robustness.py</span></h2>
+<figure><svg viewBox="0 0 1050 260" role="img" aria-label="After the baseline solve: a hit must beat the best no-hit plan by the threshold or the free move is adopted; then robustness, chips and timing run on the adopted plan.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+<rect class="nd" x="20" y="80" width="150" height="56" rx="6"/>
+<text class="t1" x="95.0" y="105" text-anchor="middle">baseline solve</text>
+<text class="t2" x="95.0" y="119" text-anchor="middle">hits allowed</text>
+<rect class="nd dc" x="230" y="80" width="150" height="56" rx="14"/>
+<text class="t1" x="305.0" y="112" text-anchor="middle">took a hit?</text>
+<rect class="nd" x="440" y="20" width="150" height="56" rx="6"/>
+<text class="t1" x="515.0" y="45" text-anchor="middle">no-hit solve</text>
+<text class="t2" x="515.0" y="59" text-anchor="middle">same settings</text>
+<rect class="nd dc" x="650" y="20" width="170" height="56" rx="14"/>
+<text class="t1" x="735.0" y="52" text-anchor="middle">gain ≥ 2.0 decayed xP?</text>
+<rect class="nd" x="880" y="20" width="150" height="56" rx="6"/>
+<text class="t1" x="955.0" y="52" text-anchor="middle">keep hit plan</text>
+<rect class="nd hi" x="880" y="100" width="150" height="56" rx="6"/>
+<text class="t1" x="955.0" y="125" text-anchor="middle">use free move</text>
+<text class="t2" x="955.0" y="139" text-anchor="middle">hit shown as rejected</text>
+<rect class="nd" x="440" y="180" width="150" height="56" rx="6"/>
+<text class="t1" x="515.0" y="205" text-anchor="middle">shake test ×25–100</text>
+<text class="t2" x="515.0" y="219" text-anchor="middle">transfer count pinned</text>
+<rect class="nd" x="650" y="180" width="170" height="56" rx="6"/>
+<text class="t1" x="735.0" y="205" text-anchor="middle">chip solves</text>
+<text class="t2" x="735.0" y="219" text-anchor="middle">WC · BB · TC · FH≈</text>
+<rect class="nd dc" x="880" y="180" width="150" height="56" rx="14"/>
+<text class="t1" x="955.0" y="205" text-anchor="middle">timing advice</text>
+<text class="t2" x="955.0" y="219" text-anchor="middle">late unless package at risk</text>
+<path class="ed" d="M170 108.0 L230 108.0" marker-end="url(#a)"/>
+<path class="ed" d="M380 108.0 L410.0 108.0 L410.0 48.0 L440 48.0" marker-end="url(#a)"/>
+<text class="el" x="434" y="42" text-anchor="end">yes</text>
+<path class="ed dash" d="M380 108.0 L410.0 108.0 L410.0 208.0 L440 208.0" marker-end="url(#a)"/>
+<text class="el" x="434" y="202" text-anchor="end">no</text>
+<path class="ed" d="M590 48.0 L650 48.0" marker-end="url(#a)"/>
+<path class="ed" d="M820 48.0 L880 48.0" marker-end="url(#a)"/>
+<text class="el" x="850" y="42" text-anchor="middle">yes</text>
+<path class="ed" d="M820 48.0 L850.0 48.0 L850.0 128.0 L880 128.0" marker-end="url(#a)"/>
+<text class="el" x="874" y="122" text-anchor="end">no</text>
+<path class="ed dash" d="M880 128.0 L735.0 128.0 L735.0 208.0 L590 208.0" marker-end="url(#a)"/>
+<path class="ed dash" d="M880 48.0 L735.0 48.0 L735.0 208.0 L590 208.0" marker-end="url(#a)"/>
+<path class="ed" d="M590 208.0 L650 208.0" marker-end="url(#a)"/>
+<path class="ed" d="M820 208.0 L880 208.0" marker-end="url(#a)"/>
+<text class="el" x="850" y="202" text-anchor="middle">survival %</text>
+</svg><figcaption><b>What happens between the solver and the report.</b> The MILP will cheerfully take a −4 for +0.1 xP; the threshold step is the human judgement encoded. Everything after it runs on whichever plan was adopted, so the survival % always refers to the move you actually see.</figcaption></figure>
+<dl class='spec'><dt>Hit threshold</dt><dd>If the baseline took a hit, solve again with <code>no_hits</code>. Keep the hit only if it beats that plan by ≥ <b>2.0</b> decayed xP (<code>hit_threshold</code> in settings).</dd><dt>Move bar</dt><dd>A move must also beat <em>doing nothing</em>: the plan is re-solved with zero transfers, and the package is only recommended if it clears holding by <b>1.75 decayed xP per transfer spent</b> — the simulated value of keeping the option open. The report shows the full decomposition (hold / best single / the package) so the decision rule is visible, not just its verdict.</dd><dt>Robustness</dt><dd>The shake test: re-solves with xP × exp(N(0, 0.15)) per player × exp(N(0, 0.08)) per player-GW. The first-GW transfer <em>count</em> is pinned to the adopted plan's — unpinned, noise makes hit-sprees look profitable and the runs answer the wrong question. Sampling is adaptive: 25 runs normally, escalating to 100 when the answer could actually change — conviction in the ambiguous 30–70% band, the gain within 1.0 of the bar, or inside the final 24h before the deadline. Reported: payload conviction (how often the key player is bought — for multi-transfer moves the exact pair rarely repeats under noise, so conviction is the honest headline), exact-set survival, per-player rates and the most common alternative moves.</dd><dt>Timing</dt><dd>Default: <b>late</b> — inside the final 24h before the deadline, stated in UK time, once team news is in. The report argues for <b>early</b> only when a recommended package is genuinely at risk: the plan is an exact fit for the budget (little slack), the prices involved are projected to move against it, and the fallback package costs ≥ 1.5 xP. The alert quantifies the risk — probability the package breaks tonight and by the deadline, from FPL's own price-change projections — and states the act-window: after the last involved player's fixture, before the nightly price change.</dd><dt>After transfers are made</dt><dd>Once transfers are made, the call card flips state: it shows the moves with the rationale captured from the run that recommended them (gain vs bar, price risk, conviction), matched against the run log — or marks them plainly as the manager's own call if they differ. The remaining advice re-frames around what's left: captaincy, line-up, and whether anything more is worth a hit.</dd><dt>Schedule awareness</dt><dd>Deadline, first/last kickoff, midweek (first kickoff Tue–Thu), doubles and blanks per GW, postponed fixtures (GW = null count as blanks), and a diff of fixture GWs/kickoffs against the previous snapshot — all from the fixture list, nothing assumes a Saturday.</dd></dl>
+</section>
+
+<section id="sched"><h2><span>6</span>Scheduling & deployment</h2>
+<figure><svg viewBox="0 0 1180 230" role="img" aria-label="Scheduler: a 3-hourly GitHub Action updates data, asks due.py whether a run is warranted, solves when it is, commits results, and Vercel redeploys on push.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+<rect class="nd ex" x="20" y="60" width="140" height="56" rx="6"/>
+<text class="t1" x="90.0" y="85" text-anchor="middle">cron, every 3h</text>
+<text class="t2" x="90.0" y="99" text-anchor="middle">GitHub Actions</text>
+<rect class="nd" x="220" y="60" width="130" height="56" rx="6"/>
+<text class="t1" x="285.0" y="85" text-anchor="middle">make update</text>
+<text class="t2" x="285.0" y="99" text-anchor="middle">+ settle</text>
+<rect class="nd dc" x="410" y="60" width="150" height="56" rx="14"/>
+<text class="t1" x="485.0" y="85" text-anchor="middle">due?</text>
+<text class="t2" x="485.0" y="99" text-anchor="middle">due.py</text>
+<rect class="nd" x="620" y="60" width="150" height="56" rx="6"/>
+<text class="t1" x="695.0" y="85" text-anchor="middle">make solve report</text>
+<text class="t2" x="695.0" y="99" text-anchor="middle">~5 min</text>
+<rect class="nd" x="830" y="60" width="150" height="56" rx="6"/>
+<text class="t1" x="905.0" y="85" text-anchor="middle">commit + push</text>
+<text class="t2" x="905.0" y="99" text-anchor="middle">data/processed, site/</text>
+<rect class="nd" x="620" y="150" width="150" height="56" rx="6"/>
+<text class="t1" x="695.0" y="175" text-anchor="middle">commit data only</text>
+<text class="t2" x="695.0" y="189" text-anchor="middle">if anything changed</text>
+<rect class="nd ex" x="1040" y="60" width="120" height="56" rx="6"/>
+<text class="t1" x="1100.0" y="85" text-anchor="middle">Vercel</text>
+<text class="t2" x="1100.0" y="99" text-anchor="middle">redeploys</text>
+<path class="ed" d="M160 88.0 L220 88.0" marker-end="url(#a)"/>
+<path class="ed" d="M350 88.0 L410 88.0" marker-end="url(#a)"/>
+<path class="ed" d="M560 88.0 L620 88.0" marker-end="url(#a)"/>
+<text class="el" x="590" y="82" text-anchor="middle">yes</text>
+<path class="ed" d="M560 88.0 L590.0 88.0 L590.0 178.0 L620 178.0" marker-end="url(#a)"/>
+<text class="el" x="614" y="172" text-anchor="end">no</text>
+<path class="ed" d="M770 88.0 L830 88.0" marker-end="url(#a)"/>
+<path class="ed dash" d="M770 178.0 L800.0 178.0 L800.0 88.0 L830 88.0" marker-end="url(#a)"/>
+<path class="ed dash" d="M980 88.0 L1040 88.0" marker-end="url(#a)"/>
+<text class="el" x="1010" y="82" text-anchor="middle">push hook</text>
+</svg><figcaption><b>The loop that makes the dashboard appear on its own.</b> The cron is dumb on purpose; all the calendar intelligence lives in <code>due.py</code>, which reads the real fixture list.</figcaption></figure>
+<dl class='spec'><dt>A run is due when</dt><dd>no plan exists yet · a GW has been finalised (<code>data_checked</code>) since the last run · inside the final 24h before a deadline with the last run ≥ 6h old · it's a new day past the morning anchor (~07:00 UK) · backstop: the last run is ≥ 24h old. The dashboard's ↻ Refresh button skips the question entirely — it dispatches the workflow via a small Vercel function.</dd><dt>What the Action commits</dt><dd><code>data/processed/</code> (plan, xP matrix, components, history, outcomes), <code>report.html</code>, <code>site/</code>. Raw snapshots stay local to the runner.</dd><dt>Vercel</dt><dd>Static project, <code>outputDirectory: site</code>, no build. Every push to <code>main</code> redeploys; the dashboard URL is stable. Manual runs: the Actions tab → Run workflow.</dd><dt>Known risk</dt><dd>FPL sometimes blocks datacentre IPs. If the update step starts failing in Actions, the fallback is a laptop-side <code>make all</code> — the same commit-and-push path.</dd></dl>
+</section>
+
+<section id="track"><h2><span>7</span>Track record <span class="file">history.py</span></h2>
+<figure><svg viewBox="0 0 860 240" role="img" aria-label="Track record: each solve appends to the history log; when a gameweek is finalised the last pre-deadline call is scored against live points and your actual picks into outcomes.json, which the track-record page renders.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs>
+<rect class="nd" x="20" y="40" width="150" height="56" rx="6"/>
+<text class="t1" x="95.0" y="65" text-anchor="middle">every solve</text>
+<text class="t2" x="95.0" y="79" text-anchor="middle">pipeline.py</text>
+<rect class="nd st" x="230" y="40" width="170" height="56" rx="6"/>
+<text class="t1" x="315.0" y="65" text-anchor="middle">history.jsonl</text>
+<text class="t2" x="315.0" y="79" text-anchor="middle">call, lineup, pred. pts</text>
+<rect class="nd dc" x="460" y="40" width="170" height="56" rx="14"/>
+<text class="t1" x="545.0" y="65" text-anchor="middle">last run before deadline</text>
+<text class="t2" x="545.0" y="79" text-anchor="middle">= the scored call</text>
+<rect class="nd ex" x="20" y="160" width="150" height="56" rx="6"/>
+<text class="t1" x="95.0" y="185" text-anchor="middle">GW data_checked</text>
+<text class="t2" x="95.0" y="199" text-anchor="middle">on next update</text>
+<rect class="nd st" x="230" y="160" width="170" height="56" rx="6"/>
+<text class="t1" x="315.0" y="185" text-anchor="middle">event/{gw}/live</text>
+<text class="t2" x="315.0" y="199" text-anchor="middle">+ entry picks</text>
+<rect class="nd st" x="460" y="160" width="170" height="56" rx="6"/>
+<text class="t1" x="545.0" y="185" text-anchor="middle">outcomes.json</text>
+<text class="t2" x="545.0" y="199" text-anchor="middle">model vs you vs predicted</text>
+<rect class="nd hi" x="690" y="100" width="150" height="56" rx="6"/>
+<text class="t1" x="765.0" y="125" text-anchor="middle">Track record page</text>
+<text class="t2" x="765.0" y="139" text-anchor="middle">site/history.html</text>
+<path class="ed" d="M170 68.0 L230 68.0" marker-end="url(#a)"/>
+<text class="el" x="200" y="62" text-anchor="middle">append</text>
+<path class="ed" d="M400 68.0 L460 68.0" marker-end="url(#a)"/>
+<text class="el" x="430" y="62" text-anchor="middle">pick</text>
+<path class="ed" d="M170 188.0 L230 188.0" marker-end="url(#a)"/>
+<text class="el" x="200" y="182" text-anchor="middle">fetch, cache forever</text>
+<path class="ed" d="M400 188.0 L460 188.0" marker-end="url(#a)"/>
+<text class="el" x="430" y="182" text-anchor="middle">score</text>
+<path class="ed" d="M545.0 96 L545.0 160" marker-end="url(#a)"/>
+<text class="el" x="551" y="116" text-anchor="start">counterfactual lineup</text>
+<path class="ed" d="M630 188.0 L660.0 188.0 L660.0 128.0 L690 128.0" marker-end="url(#a)"/>
+<path class="ed dash" d="M400 68.0 L545.0 68.0 L545.0 128.0 L690 128.0" marker-end="url(#a)"/>
+<text class="el" x="551" y="102" text-anchor="start">run log</text>
+</svg><figcaption><b>How the model gets marked.</b> Scoring uses the <em>last run before the deadline</em>, so intraday re-runs don't let it change its answer after the fact.</figcaption></figure>
+<dl class='spec'><dt>Recorded per run</dt><dd>time, GW, model version, free transfers in hand, transfers in/out, hits, captain, vice, lineup, bench, per-player xP, predicted points (lineup xP + captain − hits), conviction, gain vs the move bar, price-break risk, and the runner-up moves from the shake test — the full decision context, frozen at the moment of the call.</dd><dt>Settled per GW</dt><dd>once <code>data_checked</code> is true: model points = live points of the scored call's lineup + captain − hits (no auto-subs); the team's actual points and transfers from the entry endpoints; whether the decision was in line with the call.</dd><dt>Shown</dt><dd>a points-per-GW chart (predicted / model actual / team actual), a decision record per settled gameweek, and the full run log with each run's model version.</dd><dt>Model versions</dt><dd><code>changelog.py</code> is the single home for the model version and its changelog — every change to how the model scores or recommends bumps the version and adds an entry (expected impact included). Runs and outcomes are stamped with the version they ran under, so a changed recommendation between runs is attributable to a model change rather than new data, and the track record can measure each version's actual impact as gameweeks settle under it. Reporting and UI changes deliberately don't bump it.</dd></dl>
+</section>
+
+<section id="files"><h2><span>8</span>File map</h2>
+<div class="tw"><table>
+<tr><th>Path</th><th>Written by</th><th>Read by</th><th>In git</th></tr>
+<tr><td><code>data/raw/&lt;stamp&gt;/*.json</code></td><td>api.update_snapshot</td><td>data.load_dataset, schedule, site</td><td>no</td></tr>
+<tr><td><code>data/history/&lt;season&gt;/*.csv</code></td><td>api.download_history</td><td>data (rates, strengths), backtest</td><td>no</td></tr>
+<tr><td><code>data/history/live/*.json</code></td><td>api.fetch_gw_live / fetch_entry_picks</td><td>history.settle</td><td>no</td></tr>
+<tr><td><code>data/processed/xp_matrix.csv</code></td><td>xp.write_outputs</td><td>solver pool, site</td><td>yes</td></tr>
+<tr><td><code>data/processed/xp_components.csv</code></td><td>xp.write_outputs</td><td>site (drivers)</td><td>yes</td></tr>
+<tr><td><code>data/processed/plan.json</code></td><td>pipeline.run_solve</td><td>site, due, history.record_run</td><td>yes</td></tr>
+<tr><td><code>data/processed/history.jsonl</code></td><td>history.record_run</td><td>history.settle, site</td><td>yes</td></tr>
+<tr><td><code>data/processed/outcomes.json</code></td><td>history.settle</td><td>site (track record)</td><td>yes</td></tr>
+<tr><td><code>data/processed/backtest_predictions.csv</code>, <code>VALIDATION.md</code></td><td>backtest</td><td>you</td><td>yes</td></tr>
+<tr><td><code>site/</code> (Weekly · General · Track record · this page), <code>report.html</code></td><td>site.build_site</td><td>Vercel, you</td><td>yes</td></tr>
+<tr><td><code>config/settings.yaml</code>, <code>config/overrides.yaml</code></td><td>you</td><td>config.load_settings</td><td>yes</td></tr>
+<tr><td><code>config/confirmed.yaml</code></td><td>you (mid-window transfers)</td><td>data.load_dataset</td><td>yes</td></tr>
+<tr><td><code>src/mudchute/changelog.py</code></td><td>whoever changes the model</td><td>pipeline, history, site</td><td>yes</td></tr>
+</table></div>
+</section>
+
+<section id="limits"><h2><span>9</span>Known limits & what's next</h2>
+<dl class='spec'><dt>Minutes recency</dt><dd>Current-season start rate is season-to-date, not a recent window. The backtest shows recency is the biggest missing signal (the form baseline beats the model on rank correlation across <em>all</em> players precisely because recent points encode who is fit and starting). Fix: per-player <code>element-summary</code> pulls and a last-6-GW window.</dd><dt>Availability history</dt><dd>The backtest can't see injury flags, so its all-player error overstates live error; among players who played, the model is the best ranker of the three. See <code>VALIDATION.md</code>.</dd><dt>Prices</dt><dd>Held static over the horizon; a player you own, sell and re-buy inside the plan is valued at his original selling price. Both are standard simplifications.</dd><dt>Free Hit</dt><dd>Approximated as a one-GW re-pick, not modelled inside the multi-period solve.</dd><dt>Captaincy ceiling</dt><dd>Decisions run on mean xP, which undervalues the premium captain's haul potential — a 6.8-mean Haaland has far more upside than a 6.8-mean midfield committee. Variance is unmodelled; the captaincy list is a mean ranking.</dd><dt>Non-PL fixtures</dt><dd>European and cup games aren't in the FPL fixture list, so 'no match before the deadline' only sees league games.</dd><dt>Phase 2 candidates</dt><dd>OpenFPL projections as a drop-in for the xP matrix (the contract makes this a one-file swap); a full-season rolling solver simulation against your 2025/26; bookmaker odds for team strengths.</dd></dl>
+</section>
+</div></body></html>

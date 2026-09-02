@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.DS_Store
+.vercel
+.env*
+.claude/
+
+# Live state stays out of the showcase: raw pulls, history, and every model
+# output. Run the pipeline yourself to generate them.
+data/
+report.html
+site/
+config/confirmed.yaml

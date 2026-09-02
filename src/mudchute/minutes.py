@@ -1,0 +1,120 @@
+"""Minutes model: P(start), P(appears), P(60+), expected minutes per fixture.
+
+The highest-value component of the xP engine. Core ideas:
+- Availability from status flags is a multiplier, never a hard filter.
+- Start probability blends current-season starts (strong early signal of the
+  post-transfer-window pecking order) with last season's late-season start rate.
+- New signings with no PL history get a price-based prior that evidence
+  quickly overrides.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from .data import Dataset
+
+CURRENT_WEIGHT_K = 1.5   # team games for current season to reach 40% weight
+DEFAULT_MINS_PER_START = 78.0
+DEFAULT_P60_GIVEN_START = 0.85
+DEFAULT_SUB_PROB = 0.15
+SUB_MINS = 18.0
+
+
+def availability(row: pd.Series) -> float:
+    """Map status flag + chance_of_playing to P(available) multiplier."""
+    status = row["status"]
+    chance = row["chance_of_playing_next_round"]
+    if status == "a":
+        return 1.0
+    if status == "d":
+        return (chance / 100.0) if pd.notna(chance) else 0.75
+    if status in ("i", "s", "n"):
+        return (chance / 100.0) if pd.notna(chance) else (
+            0.1 if status == "i" else 0.0)
+    if status == "u":
+        return 0.0
+    return 1.0
+
+
+def _price_prior_start_rate(now_cost: int, pos: str) -> float:
+    """Prior P(start) for players with no PL history, from price."""
+    price = now_cost / 10.0
+    if pos == "GKP":
+        return 0.85 if price >= 5.0 else 0.4
+    if price >= 7.0:
+        return 0.78
+    if price >= 5.5:
+        return 0.60
+    if price >= 4.8:
+        return 0.45
+    return 0.30
+
+
+def build_minutes(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
+    """Per-player minutes profile (per-fixture quantities)."""
+    players = ds.players.merge(last_rates, on="code", how="left")
+
+    # Games each team has actually started this season (live GWs count).
+    fx = ds.fixtures
+    started = fx[fx["started"] == True]  # noqa: E712
+    games_played = {}
+    for tid in ds.teams["id"]:
+        games_played[tid] = int(
+            ((started["team_h"] == tid) | (started["team_a"] == tid)).sum())
+
+    out = []
+    for _, p in players.iterrows():
+        n_cur = games_played.get(p["team"], 0)
+        avail = availability(p)
+
+        # -- start probability --
+        # Blend late-season and full-season start rates: late captures the
+        # current pecking order, full smooths single-window noise (rests in
+        # dead rubbers, a red card, one injury).
+        late, full = p["late_start_rate_last"], p["start_rate_last"]
+        if pd.notna(late) and pd.notna(full):
+            prior = 0.5 * late + 0.5 * full
+        elif pd.notna(full):
+            prior = full
+        else:
+            prior = _price_prior_start_rate(p["now_cost"], p["pos"])
+        # Nailed premiums: a 10m+ player who played heavy minutes last season
+        # starts when fit, whatever end-of-season rotation said.
+        if (p["now_cost"] >= 100 and p["status"] == "a"
+                and pd.notna(p.get("mins_last")) and p["mins_last"] >= 2000):
+            prior = max(prior, 0.90)
+        if n_cur > 0:
+            cur_rate = min(p["starts"] / n_cur, 1.0)
+            w = n_cur / (n_cur + CURRENT_WEIGHT_K)
+            base_start = w * cur_rate + (1 - w) * prior
+        else:
+            base_start = prior
+        base_start = float(np.clip(base_start, 0.0, 0.97))
+
+        # -- minutes patterns --
+        mins_per_start = p["mins_per_start_last"]
+        if pd.isna(mins_per_start):
+            mins_per_start = DEFAULT_MINS_PER_START
+        p60_start = p["p60_given_start_last"]
+        if pd.isna(p60_start):
+            p60_start = DEFAULT_P60_GIVEN_START
+        sub_prob = DEFAULT_SUB_PROB
+        if pd.notna(p.get("sub_apps_last")) and pd.notna(p.get("starts_last")):
+            non_start_gws = max(38 - p["starts_last"], 1)
+            sub_prob = float(np.clip(p["sub_apps_last"] / non_start_gws, 0.0, 0.8))
+        if p["pos"] == "GKP":
+            mins_per_start, p60_start, sub_prob = 90.0, 0.99, 0.02
+
+        p_start = avail * base_start
+        p_appear = avail * (base_start + (1 - base_start) * sub_prob)
+        p60 = p_start * p60_start
+        xmins = p_start * mins_per_start + (p_appear - p_start) * SUB_MINS
+
+        out.append({
+            "id": p["id"], "code": p["code"], "avail": avail,
+            "p_start": p_start, "p_appear": p_appear, "p60": p60,
+            "xmins": xmins,
+        })
+    return pd.DataFrame(out)

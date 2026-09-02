@@ -1,0 +1,62 @@
+name: Model run
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"     # every 3 hours; the `due` check decides whether to solve
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run the solver even if not due"
+        type: boolean
+        default: true
+
+concurrency:
+  group: model-run
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Update data
+        run: make update
+
+      - name: Is a run due?
+        id: due
+        run: |
+          DUE=$(uv run python -m mudchute due)
+          echo "due=$DUE" >> "$GITHUB_OUTPUT"
+
+      - name: Solve + report
+        if: steps.due.outputs.due == 'true' || inputs.force == true
+        run: make solve report
+
+      - name: Commit results
+        run: |
+          git config user.name "mudchute-bot"
+          git config user.email "mudchute-bot@users.noreply.github.com"
+          git add -A data/processed report.html site
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Scheduled run: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            # Race-tolerant push: another session or run may have landed on
+            # main meanwhile; rebase (our regenerated outputs win) and retry.
+            for i in 1 2 3; do
+              git push && break
+              git pull --rebase -X theirs origin main || exit 1
+            done
+          fi

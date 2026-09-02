@@ -1,0 +1,16 @@
+# Your knobs for the solver. Edit, save, then run `make solve` again.
+# Player names match FPL web names ("Haaland", "B.Fernandes", "João Pedro").
+
+# Players the solver MUST keep/have in the squad all horizon:
+lock: []
+#  - Haaland
+
+# Players the solver may never own:
+ban: []
+#  - Isak
+
+# Force exactly N transfers this gameweek (null = solver decides):
+force_transfers: null
+
+# Forbid points hits entirely:
+no_hits: false
