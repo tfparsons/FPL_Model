@@ -40,6 +40,7 @@ class Dataset:
     free_transfers: int            # derived from actual transfer history
     confirmed_transfers: list      # transfers already made THIS gameweek
     total_points: int              # season points so far (entry summary)
+    entry_name: str                # the team's name, from the entry (header brand)
     max_ft: int                    # bankable-FT cap, read from the API rules
     next_gw: int
     chips_available: list[str]
@@ -162,6 +163,7 @@ def load_dataset() -> Dataset:
         squad=squad, bank=bank, free_transfers=free_transfers,
         confirmed_transfers=confirmed, max_ft=max_ft,
         total_points=int(snap["entry"].get("summary_overall_points") or 0),
+        entry_name=str(snap["entry"].get("name") or "FPL Model"),
         next_gw=next_gw,
         chips_available=chips_available, picks_gw=picks["_gw"],
         fetched_at=snap["meta"]["fetched_at"],

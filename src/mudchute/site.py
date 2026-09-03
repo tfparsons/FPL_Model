@@ -566,7 +566,8 @@ def shirt_svg(colour: str) -> str:
             f'stroke-linejoin="round"/></svg>')
 
 
-def page(title: str, active: str, header_sub: str, gw: int, body: str) -> str:
+def page(title: str, active: str, header_sub: str, gw: int, body: str,
+         team: str = "FPL Model") -> str:
     nav = "".join(
         f'<a href="{href}" class="{"active" if key == active else ""}">{label}</a>'
         for key, href, label in [("plan", "index.html", "Weekly"),
@@ -578,7 +579,7 @@ def page(title: str, active: str, header_sub: str, gw: int, body: str) -> str:
 <title>{ESC(title)}</title>
 <style>{CSS}</style></head><body>
 <header class="top"><div class="wrap">
-<h1>Real Mudchute <span class="gwpill">GW{gw}</span></h1>
+<h1>{ESC(team)} <span class="gwpill">GW{gw}</span></h1>
 <div class="sub">{header_sub} · <button id="rbtn" class="rbtn" type="button">↻ Refresh</button>
 <span id="rmsg" class="rmsg"></span></div>
 <nav class="tabs">{nav}</nav>
@@ -1899,13 +1900,16 @@ def build_site() -> None:
 <script>{WEEKLY_JS}</script>
 """
     SITE.mkdir(exist_ok=True)
-    index = page(f"Real Mudchute — GW{next_gw} plan", "plan", header_sub, next_gw, body)
+    team_name = ds.entry_name
+    index = page(f"{team_name} — GW{next_gw} plan", "plan", header_sub,
+                 next_gw, body, team=team_name)
     (SITE / "index.html").write_text(index)
     (SITE / "general.html").write_text(page(
-        "Real Mudchute — the market", "general", header_sub, next_gw,
-        _general_body(matrix, ds, gws, owned, fx_by_team_gw, short, q)))
+        f"{team_name} — the market", "general", header_sub, next_gw,
+        _general_body(matrix, ds, gws, owned, fx_by_team_gw, short, q),
+        team=team_name))
     (SITE / "history.html").write_text(
-        page("Real Mudchute — track record", "history", header_sub, next_gw,
+        page(f"{team_name} — track record", "history", header_sub, next_gw,
              _history_body(ds, ((plan.get("completed") or {}).get("matched")
                                 or {}).get("run_at"))))
     shutil.copy(SITE / "index.html", ROOT / "report.html")
