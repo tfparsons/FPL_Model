@@ -26,9 +26,12 @@ touching the other.
 weighted average over how the match could go. It's built from three
 independent sub-models:
 
-- **Minutes** — the load-bearing one. P(start) blends this season's starts
-  with last season's pattern (weighted by how much evidence this season has
-  produced), giving P(60+ minutes) and expected minutes. Injury flags
+- **Minutes** — the load-bearing one. P(start) comes from per-player game
+  logs — the current club's last six games, weighted toward the latest and
+  blended with the season rate — against last season's pattern as the
+  prior, giving P(60+ minutes) and expected minutes. Benchings and injuries
+  show up within a game or two; a regular returning from an absence is
+  eased back in. Injury flags
   *discount* a player, never remove him — a 75%-flagged player keeps 75% of
   his xP and the solver weighs him against the alternatives.
   Evidence earned at another club doesn't count: a mid-season mover, a

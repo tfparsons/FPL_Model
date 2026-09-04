@@ -10,10 +10,26 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.6"
+MODEL_VERSION = "1.7"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.7",
+        "date": "4 Sep 2026",
+        "title": "Recency window + return window",
+        "detail": "Per-player game logs replace season totals as the minutes "
+                  "evidence: the current club's last 6 games, geometrically "
+                  "weighted, blended 70/30 with the season rate. A regular who "
+                  "reappears after a 3+ game absence is eased in (start "
+                  "probability capped at 0.75, minutes trimmed 15%) until 2 "
+                  "games of evidence, flagged in the UI.",
+        "impact": "Last-season backtest of next-game starts: Brier 0.163 vs "
+                  "0.191 for season-to-date; on the cases where the two "
+                  "disagree, error falls by a third. Benchings and injuries "
+                  "show up in the model within a game or two instead of a "
+                  "month.",
+    },
     {
         "version": "1.6",
         "date": "3 Sep 2026",

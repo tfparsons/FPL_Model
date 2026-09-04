@@ -604,6 +604,7 @@ GENERAL_JS = r"""
   function sum(arr, k) { var t = 0; for (var i = 0; i < k; i++) t += arr[i]; return t; }
   function adjAttr(p) {
     if (!p.adj) return '';
+    if (p.adj === 'return') return ' class="adjxp" data-tip="xP eased in: a regular back from a 3+ game absence; start probability capped and minutes trimmed until 2 games of evidence (' + p.ag + ' so far)."';
     var why = p.adj === 'move' ? 'moved club mid-season, so old-club starts do not count'
                                : 'new to this club or league, so last season\'s record is from elsewhere';
     return ' class="adjxp" data-tip="xP rebuilt on thin evidence: ' + why + '. ' + p.ag +
@@ -952,7 +953,7 @@ def _general_body(matrix: pd.DataFrame, ds, gws: list[int], owned: set[int],
     return f"""
 <div class="card"><h2>Horizon {info("Expected points already account for minutes, "
     "fixtures, doubles and blanks; the fixture scores summarise the same model at team level. "
-    "Orange xP = rebuilt on thin evidence after a club move or arrival — hover it for details.")}</h2>
+    "Orange xP = rebuilt on thin evidence (club move, new arrival, or return from injury) — hover it for details.")}</h2>
   <div class="controls"><label for="hrange">Look ahead</label>
     <input type="range" id="hrange" min="1" max="{len(gws)}" value="5" aria-label="Gameweeks to look ahead">
     <span class="hrz" id="hlabel"></span></div></div>
@@ -1022,6 +1023,10 @@ def build_site() -> None:
         if not a:
             return ""
         g = int(adj_games.get(pid, 0))
+        if a == "return":
+            return (f"xP eased in: a regular back from a 3+ game absence — start "
+                    f"probability capped and minutes trimmed until 2 games of "
+                    f"evidence ({g} so far).")
         why = ("moved club mid-season, so old-club starts don't count"
                if a == "move" else
                "new to this club or league, so last season's record is from elsewhere")
@@ -1877,7 +1882,7 @@ def build_site() -> None:
 <div class="card"><h2>GW{next_gw} line-up {info(
     "Each card: expected points this gameweek, then price and expected points per £1m — value for "
     "money. C = captain (his score counts double), V = vice, who steps in if the captain doesn't play. "
-    "Orange xP = rebuilt on thin evidence after a club move or arrival — hover it for details.")}</h2>
+    "Orange xP = rebuilt on thin evidence (club move, new arrival, or return from injury) — hover it for details.")}</h2>
   <div class="pitch">{pitch}<div class="bench">{bench}</div></div></div>
 <div class="card"><h2>Chips {info(
     "The verdict is the model's judgement. 'Would add' answers one narrow question: expected points a chip "

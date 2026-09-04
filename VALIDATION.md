@@ -41,3 +41,20 @@ Consequence: recommendations are deliberately reluctant — a one-FT move must b
 1. **Minutes model recency**: the form baseline's advantage comes from recent-window information. A last-6-GW start-rate window (needs per-player `element-summary` pulls) is the single highest-value upgrade.
 2. **Adopt OpenFPL's published models** (Phase 2 in the brief) once this pipeline has a few gameweeks of live history to compare against.
 3. The solver needs nothing — it is exact given its inputs.
+## Minutes evidence: recency window vs season-to-date (2025-26 game logs)
+
+Question: which better predicts whether a player starts his next game — his
+season-to-date start rate, or a decayed window over his club's last 6 games?
+Scored from GW8 onward for every player with a start by GW7 (11,088
+player-gameweeks), Brier score (lower is better):
+
+| Evidence term | Brier | log-loss |
+|---|---|---|
+| Season-to-date | 0.191 | 0.570 |
+| Last-6 window, decay 0.8 | 0.168 | 0.548 |
+| 70% window + 30% season | **0.163** | **0.511** |
+
+On the 2,247 cases where the two disagree by more than 0.3, season-to-date
+scores 0.282 and the window 0.190 — a third less error exactly where it
+matters (benchings, injuries, role changes). The model uses the 70/30 blend
+as its evidence term (v1.7).

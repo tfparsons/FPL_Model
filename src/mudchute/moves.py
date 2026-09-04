@@ -76,16 +76,23 @@ def games_played(ds) -> dict[int, int]:
             for t in ds.teams["id"]}
 
 
-def arrival_flags(ds, last_rates: pd.DataFrame, moves: dict[int, dict]) -> pd.DataFrame:
-    """Per player: adjusted ('move' | 'arrival' | ''), and games of evidence."""
+def arrival_flags(ds, last_rates: pd.DataFrame, moves: dict[int, dict],
+                  form: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Per player: adjusted ('move' | 'return' | 'arrival' | ''), games of evidence."""
     played = games_played(ds)
     lr = last_rates.set_index("code")
+    frm = form.set_index("id") if form is not None else None
     rows = []
     for _, p in ds.players.iterrows():
         pid = int(p["id"])
         if pid in moves:
             rows.append({"id": pid, "adjusted": "move",
                          "adj_games": int(moves[pid]["games_since"])})
+            continue
+        if (frm is not None and pid in frm.index and bool(frm.at[pid, "returning"])
+                and p["status"] == "a"):
+            rows.append({"id": pid, "adjusted": "return",
+                         "adj_games": int(frm.at[pid, "return_games"])})
             continue
         code = p["code"]
         last_team = lr["team_code_last"].get(code) if code in lr.index else None

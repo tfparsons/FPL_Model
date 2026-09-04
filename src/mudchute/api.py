@@ -145,3 +145,32 @@ def clean_old_snapshots(keep: int = 10) -> None:
     snaps = sorted([d for d in RAW.iterdir() if d.is_dir()])
     for d in snaps[:-keep]:
         shutil.rmtree(d)
+
+
+def fetch_element_summaries(ids: list[int], max_finished_gw: int,
+                            spacing: float = 0.3) -> dict[int, list[dict]]:
+    """Per-player game logs (this season), cached per finished-GW state.
+
+    The cache key is the number of finalised gameweeks: a log can only grow
+    when a gameweek finishes, so one pull per player per finished GW is the
+    honest minimum. ~1 request per player with minutes this season.
+    """
+    out: dict[int, list[dict]] = {}
+    cache = HISTORY / "summaries" / f"gw{max_finished_gw}"
+    cache.mkdir(parents=True, exist_ok=True)
+    session = requests.Session()
+    for pid in ids:
+        dest = cache / f"{pid}.json"
+        if dest.exists():
+            out[int(pid)] = json.loads(dest.read_text())
+            continue
+        try:
+            data = _get(f"{BASE}/element-summary/{pid}/", session)
+        except Exception as exc:  # one bad player must not sink the run
+            print(f"WARNING: element-summary {pid} failed: {exc}")
+            continue
+        hist = data.get("history") or []
+        dest.write_text(json.dumps(hist))
+        out[int(pid)] = hist
+        time.sleep(spacing)
+    return out

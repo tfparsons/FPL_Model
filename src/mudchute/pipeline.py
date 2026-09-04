@@ -11,6 +11,7 @@ import pandas as pd
 from .changelog import MODEL_VERSION
 from .config import PROCESSED, Settings, load_settings
 from .data import Dataset, load_dataset
+from .logs import build_game_logs, recent_form
 from .moves import detect_club_moves
 from .robustness import run_robustness
 from .schedule import (fmt_uk, gw_breaks, gw_schedule, horizon_notes,
@@ -75,7 +76,12 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
         print("Club moves in the settling window: " + ", ".join(
             f"{mv['name']} ({mv['games_since']} game{'s' if mv['games_since'] != 1 else ''} at new club)"
             for mv in moves.values()))
-    matrix, comps = build_xp(ds, settings.horizon, moves)
+    print("Game logs: pulling per-player histories (cached per finished GW) ...")
+    logs = build_game_logs(ds)
+    form = recent_form(ds, logs)
+    n_ret = int(form["returning"].sum())
+    print(f"  {logs['id'].nunique()} players with logs; {n_ret} returning from absence")
+    matrix, comps = build_xp(ds, settings.horizon, moves, form)
     write_outputs(matrix, comps)
 
     gws = [int(c.replace("xp_gw", "")) for c in matrix.columns

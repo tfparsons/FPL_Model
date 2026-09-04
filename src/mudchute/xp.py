@@ -115,17 +115,19 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame,
 
 
 def build_xp(ds: Dataset, horizon: int,
-             moves: dict[int, dict] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+             moves: dict[int, dict] | None = None,
+             form: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (xp_matrix wide, components long) for the next `horizon` GWs."""
     from .moves import arrival_flags
     last_rates = last_season_player_rates()
     strengths = build_strengths(ds)
     lambdas = fixture_lambdas(ds, strengths)
     moves = moves or {}
-    flags = arrival_flags(ds, last_rates, moves)
-    minutes = build_minutes(ds, last_rates, moves, flags)
+    flags = arrival_flags(ds, last_rates, moves, form)
+    minutes = build_minutes(ds, last_rates, moves, flags, form)
     rates = build_rates(ds, last_rates, flags)
-    capped = set(flags.loc[flags["adjusted"] != "", "id"].astype(int))
+    # attack-uplift cap applies to evidence earned elsewhere, not to returners
+    capped = set(flags.loc[flags["adjusted"].isin(["move", "arrival"]), "id"].astype(int))
 
     gws = list(range(ds.next_gw, min(ds.next_gw + horizon, 39)))
     lam_by_team_gw: dict[tuple[int, int], list[pd.Series]] = {}
