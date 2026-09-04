@@ -66,6 +66,9 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame,
     else:
         players["adjusted"] = ""
     arrival = players["adjusted"].fillna("").isin(["move", "arrival"])
+    # A thin last season (injury, bit-part) is weak evidence about a player's
+    # rates as well as his minutes: scale its weight by reliability.
+    rel_last = (players["mins_last"].fillna(0).astype(float) / 1500.0).clip(0, 1)
     priors = _position_priors(last_rates, ds.players)
     players = players.merge(priors, on="pos", how="left")
 
@@ -99,10 +102,10 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame,
         out[c] = [
             _blend(pl_last, ml, pc, mc, pr,
                    ARRIVAL_PRIOR_MINS if arr else prior_mins,
-                   ARRIVAL_LAST_SCALE if arr else 1.0)
-            for pl_last, ml, pc, mc, pr, arr in zip(
+                   (ARRIVAL_LAST_SCALE if arr else 1.0) * rl)
+            for pl_last, ml, pc, mc, pr, arr, rl in zip(
                 players[f"{c}_last"], players["mins_last"].fillna(0),
-                cur[c], mins_cur, prior.fillna(0), arrival)
+                cur[c], mins_cur, prior.fillna(0), arrival, rel_last)
         ]
     # Defensive contribution: P(hit threshold per full appearance), blended in
     # appearance-count space. (Current-season counts aren't cleanly exposed in

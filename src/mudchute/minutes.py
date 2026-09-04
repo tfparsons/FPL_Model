@@ -21,6 +21,8 @@ WINDOW_SHARE = 0.7       # evidence = 0.7 x recent-window rate + 0.3 x season ra
                          # (last-season backtest: Brier 0.163 vs 0.191 season-only)
 RETURN_START_CAP = 0.75  # a regular back from a 3+ game absence is eased in
 RETURN_MINS_SCALE = 0.85
+RELIABLE_MINS = 1500.0   # last-season minutes for the prior to count in full;
+                         # below it the prior leans on price and evidence weighs more
 DEFAULT_MINS_PER_START = 78.0
 DEFAULT_P60_GIVEN_START = 0.85
 DEFAULT_SUB_PROB = 0.15
@@ -85,19 +87,26 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
         # current pecking order, full smooths single-window noise (rests in
         # dead rubbers, a red card, one injury).
         late, full = p["late_start_rate_last"], p["start_rate_last"]
+        price_prior = _price_prior_start_rate(p["now_cost"], p["pos"])
+        # How much last season is there? An injury-wrecked 700-minute season
+        # says little about the pecking order; its start rate must not read
+        # as "rotation option". Reliability scales the prior toward price and
+        # hands weight to this season's games.
+        mins_last_ = float(p["mins_last"]) if pd.notna(p.get("mins_last")) else 0.0
+        rel = float(np.clip(mins_last_ / RELIABLE_MINS, 0.0, 1.0))
         if pd.notna(late) and pd.notna(full):
-            prior = 0.5 * late + 0.5 * full
+            prior = rel * (0.5 * late + 0.5 * full) + (1 - rel) * price_prior
         elif pd.notna(full):
-            prior = full
+            prior = rel * full + (1 - rel) * price_prior
         else:
-            prior = _price_prior_start_rate(p["now_cost"], p["pos"])
+            prior = price_prior
         # Nailed premiums: a 10m+ player who played heavy minutes last season
         # starts when fit, whatever end-of-season rotation said.
         if (p["now_cost"] >= 100 and p["status"] == "a"
                 and pd.notna(p.get("mins_last")) and p["mins_last"] >= 2000):
             prior = max(prior, 0.90)
         starts_cur = float(p["starts"])
-        k_cur = CURRENT_WEIGHT_K
+        k_cur = rel * CURRENT_WEIGHT_K + (1 - rel) * ARRIVAL_WEIGHT_K
         pid = int(p["id"])
         if pid in moves:
             # Mid-season mover: the old club's starts are not evidence about
@@ -142,9 +151,13 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
         mins_per_start = p["mins_per_start_last"]
         if pd.isna(mins_per_start):
             mins_per_start = DEFAULT_MINS_PER_START
+        else:  # a thin season's substitution pattern is weak evidence too
+            mins_per_start = rel * mins_per_start + (1 - rel) * DEFAULT_MINS_PER_START
         p60_start = p["p60_given_start_last"]
         if pd.isna(p60_start):
             p60_start = DEFAULT_P60_GIVEN_START
+        else:
+            p60_start = rel * p60_start + (1 - rel) * DEFAULT_P60_GIVEN_START
         sub_prob = DEFAULT_SUB_PROB
         if pd.notna(p.get("sub_apps_last")) and pd.notna(p.get("starts_last")):
             non_start_gws = max(38 - p["starts_last"], 1)

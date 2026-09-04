@@ -10,10 +10,23 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.7"
+MODEL_VERSION = "1.8"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.8",
+        "date": "4 Sep 2026",
+        "title": "Prior reliability scales with last-season minutes",
+        "detail": "A last season below ~1500 minutes counts proportionally "
+                  "less: the start-rate prior leans toward the price prior, "
+                  "this season's games weigh more, and substitution patterns "
+                  "blend toward defaults. Players under 750 minutes last "
+                  "season are flagged 'thin' until 4 games.",
+        "impact": "An injury-wrecked season no longer reads as 'rotation "
+                  "option': Isak (694 min last season, two 90-minute starts "
+                  "now) goes from P(start) 0.62 / 48 minutes to ~0.83 / ~68.",
+    },
     {
         "version": "1.7",
         "date": "4 Sep 2026",

@@ -26,6 +26,7 @@ import pandas as pd
 from .config import PROCESSED
 
 SETTLE_GAMES = 4
+THIN_MINS = 750       # last-season minutes below which the prior is flagged as thin
 MOVES_FILE = PROCESSED / "club_moves.json"
 
 
@@ -100,8 +101,11 @@ def arrival_flags(ds, last_rates: pd.DataFrame, moves: dict[int, dict],
         summer_move = last_team is not None and pd.notna(last_team) and \
             int(last_team) != int(p["team_code"])
         n = played.get(int(p["team"]), 0)
+        mins_last = float(lr["mins_last"].get(code, 0) or 0) if code in lr.index else 0.0
         if (no_history or summer_move) and n < SETTLE_GAMES:
             rows.append({"id": pid, "adjusted": "arrival", "adj_games": n})
+        elif not no_history and mins_last < THIN_MINS and n < SETTLE_GAMES:
+            rows.append({"id": pid, "adjusted": "thin", "adj_games": n})
         else:
             rows.append({"id": pid, "adjusted": "", "adj_games": n})
     return pd.DataFrame(rows)
