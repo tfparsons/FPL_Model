@@ -604,6 +604,8 @@ GENERAL_JS = r"""
   function sum(arr, k) { var t = 0; for (var i = 0; i < k; i++) t += arr[i]; return t; }
   function adjAttr(p) {
     if (!p.adj) return '';
+    if (p.adj === 'cover') return ' class="adjxp" data-tip="xP lifted by cover: ' + esc(p.cv || 'a regular') + ' out at this club, so the starting slot passes to the fit candidates in proportion to their own chances. Own scoring rates, more minutes."';
+    if (p.adj === 'squeeze') return ' class="adjxp" data-tip="xP trimmed by a squeeze: more fit starters than slots in this position at this club, so start probabilities are scaled to fit."';
     if (p.adj === 'return') return ' class="adjxp" data-tip="xP eased in: a regular back from a 3+ game absence; start probability capped and minutes trimmed until 2 games of evidence (' + p.ag + ' so far)."';
     if (p.adj === 'thin') return ' class="adjxp" data-tip="xP on a thin prior: last season was under 750 minutes, so it says little about this year\'s role; the prior leans on price and this season\'s games weigh more (' + p.ag + ' so far; settles at 4)."';
     var why = p.adj === 'move' ? 'moved club mid-season, so old-club starts do not count'
@@ -925,6 +927,7 @@ def _general_body(matrix: pd.DataFrame, ds, gws: list[int], owned: set[int],
             "o": float(r["selected_by_percent"]), "s": str(r["status"]),
             "m": round(float(r["xmins"]), 1),
             "adj": str(r.get("adjusted") or "") if isinstance(r.get("adjusted"), str) else "",
+            "cv": str(r.get("cover_for") or "") if isinstance(r.get("cover_for"), str) else "",
             "ag": int(r.get("adj_games") or 0),
             "tp": int(boot.at[pid_, "total_points"]),
             "f": float(boot.at[pid_, "form"]),
@@ -954,7 +957,7 @@ def _general_body(matrix: pd.DataFrame, ds, gws: list[int], owned: set[int],
     return f"""
 <div class="card"><h2>Horizon {info("Expected points already account for minutes, "
     "fixtures, doubles and blanks; the fixture scores summarise the same model at team level. "
-    "Orange xP = built on thin evidence (club move, new arrival, return from injury, or an injury-hit last season) — hover it for details.")}</h2>
+    "Orange xP = adjusted by a rule (club move, new arrival, return from injury, injury-hit last season, or covering for an absent teammate) — hover it for details.")}</h2>
   <div class="controls"><label for="hrange">Look ahead</label>
     <input type="range" id="hrange" min="1" max="{len(gws)}" value="5" aria-label="Gameweeks to look ahead">
     <span class="hrz" id="hlabel"></span></div></div>
@@ -1017,6 +1020,7 @@ def build_site() -> None:
     def xp(p, g): return float(m.at[p, f"xp_gw{g}"])
     def xp_near(p): return sum(xp(p, g) for g in near)
     adj_of = (m["adjusted"].fillna("").to_dict() if "adjusted" in m.columns else {})
+    cover_of = (m["cover_for"].fillna("").to_dict() if "cover_for" in m.columns else {})
     adj_games = (m["adj_games"].fillna(0).to_dict() if "adj_games" in m.columns else {})
 
     def adj_tip(pid):
@@ -1024,6 +1028,15 @@ def build_site() -> None:
         if not a:
             return ""
         g = int(adj_games.get(pid, 0))
+        if a == "cover":
+            return (f"xP lifted by cover: {cover_of.get(pid, 'a regular')} out at "
+                    f"this club, so his starting slot passes to the fit "
+                    f"candidates in proportion to their own chances. Own scoring "
+                    f"rates, more minutes.")
+        if a == "squeeze":
+            return ("xP trimmed by a squeeze: more fit starters than slots in "
+                    "this position at this club, so everyone's start probability "
+                    "is scaled to fit.")
         if a == "return":
             return (f"xP eased in: a regular back from a 3+ game absence — start "
                     f"probability capped and minutes trimmed until 2 games of "
@@ -1890,7 +1903,7 @@ def build_site() -> None:
 <div class="card"><h2>GW{next_gw} line-up {info(
     "Each card: expected points this gameweek, then price and expected points per £1m — value for "
     "money. C = captain (his score counts double), V = vice, who steps in if the captain doesn't play. "
-    "Orange xP = built on thin evidence (club move, new arrival, return from injury, or an injury-hit last season) — hover it for details.")}</h2>
+    "Orange xP = adjusted by a rule (club move, new arrival, return from injury, injury-hit last season, or covering for an absent teammate) — hover it for details.")}</h2>
   <div class="pitch">{pitch}<div class="bench">{bench}</div></div></div>
 <div class="card"><h2>Chips {info(
     "The verdict is the model's judgement. 'Would add' answers one narrow question: expected points a chip "

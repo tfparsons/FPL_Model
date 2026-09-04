@@ -34,7 +34,11 @@ independent sub-models:
   eased back in. Injury flags
   *discount* a player, never remove him — a 75%-flagged player keeps 75% of
   his xP and the solver weighs him against the alternatives.
-  Evidence earned at another club doesn't count: a mid-season mover, a
+  A club's minutes belong to positional slots: when a would-be starter is
+  known to be out, his slot passes to fit teammates in proportion to their
+  own chances (guided by who historically covered him), spilling across
+  positions if nobody in the group can fill it — beneficiaries keep their
+  own scoring rates. Evidence earned at another club doesn't count: a mid-season mover, a
   summer signing or a player with no PL record is rebuilt from a fresh
   prior, with the new club's games dominating fast — in both directions —
   until the club has played four games. The dashboard shows such xP in

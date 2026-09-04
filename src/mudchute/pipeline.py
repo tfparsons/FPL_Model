@@ -81,7 +81,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     form = recent_form(ds, logs)
     n_ret = int(form["returning"].sum())
     print(f"  {logs['id'].nunique()} players with logs; {n_ret} returning from absence")
-    matrix, comps = build_xp(ds, settings.horizon, moves, form)
+    matrix, comps = build_xp(ds, settings.horizon, moves, form, logs)
     write_outputs(matrix, comps)
 
     gws = [int(c.replace("xp_gw", "")) for c in matrix.columns

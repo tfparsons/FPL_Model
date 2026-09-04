@@ -62,8 +62,14 @@ def _price_prior_start_rate(now_cost: int, pos: str) -> float:
 def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
                   moves: dict[int, dict] | None = None,
                   flags: pd.DataFrame | None = None,
-                  form: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Per-player minutes profile (per-fixture quantities)."""
+                  form: pd.DataFrame | None = None,
+                  logs: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Per-player minutes profile (per-fixture quantities).
+
+    Two passes: a standalone start probability per player, then a slot
+    rebalance per club/position (knock-on from known absences), then the
+    minutes quantities.
+    """
     moves = moves or {}
     adj = (flags.set_index("id")["adjusted"].to_dict() if flags is not None else {})
     frm = form.set_index("id") if form is not None else None
@@ -145,6 +151,11 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
         returning = bool(f is not None and f["returning"] and p["status"] == "a")
         if returning:
             base_start = min(base_start, RETURN_START_CAP)
+        if avail <= 0.25:
+            # An absent player's standalone P(start) is "would he start if
+            # fit?" — the games he missed while out are not evidence of a
+            # lost place. Use his prior; availability zeroes his own xP anyway.
+            base_start = max(base_start, prior)
         base_start = float(np.clip(base_start, 0.0, 0.97))
 
         # -- minutes patterns --
@@ -167,14 +178,42 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
         if returning:
             mins_per_start *= RETURN_MINS_SCALE
 
-        p_start = avail * base_start
-        p_appear = avail * (base_start + (1 - base_start) * sub_prob)
-        p60 = p_start * p60_start
-        xmins = p_start * mins_per_start + (p_appear - p_start) * SUB_MINS
-
         out.append({
-            "id": p["id"], "code": p["code"], "avail": avail,
-            "p_start": p_start, "p_appear": p_appear, "p60": p60,
-            "xmins": xmins,
+            "id": int(p["id"]), "code": p["code"], "name": str(p["web_name"]),
+            "team": int(p["team"]), "pos": str(p["pos"]), "avail": avail,
+            "base_start": base_start, "mins_per_start": mins_per_start,
+            "p60_start": p60_start, "sub_prob": sub_prob,
         })
-    return pd.DataFrame(out)
+    base = pd.DataFrame(out)
+
+    # -- pass 2: slot rebalance (knock-on from known absences) --
+    from .slots import absence_pairings, formation_slots, rebalance
+    if logs is not None and len(logs):
+        slots = formation_slots(ds, logs, _last_season_gws())
+        games = pd.DataFrame({"team": logs["team"], "game": logs["fixture"],
+                              "player": logs["id"], "started": logs["started"]})
+        reb = rebalance(base[["id", "name", "team", "pos", "base_start", "avail"]],
+                        slots, absence_pairings(games)).set_index("id")
+        base["base_start"] = base["id"].map(reb["base_start"]).fillna(base["base_start"])
+        base["cover_for"] = base["id"].map(reb["cover_for"]).fillna("")
+        base["squeeze"] = base["id"].map(reb["squeeze"]).fillna(False).astype(bool)
+    else:
+        base["cover_for"], base["squeeze"] = "", False
+
+    # -- pass 3: minutes quantities --
+    b = base
+    b["p_start"] = b["avail"] * b["base_start"]
+    b["p_appear"] = b["avail"] * (b["base_start"] + (1 - b["base_start"]) * b["sub_prob"])
+    b["p60"] = b["p_start"] * b["p60_start"]
+    b["xmins"] = b["p_start"] * b["mins_per_start"] + (b["p_appear"] - b["p_start"]) * SUB_MINS
+    return b[["id", "code", "avail", "p_start", "p_appear", "p60", "xmins",
+              "cover_for", "squeeze"]]
+
+
+def _last_season_gws() -> pd.DataFrame | None:
+    """Last season's game table (team, GW, position, starts) for formation shape."""
+    from .config import HISTORY
+    path = HISTORY / "2025-26" / "merged_gw.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path, usecols=["team", "GW", "position", "starts"], low_memory=False)

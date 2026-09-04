@@ -119,7 +119,8 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame,
 
 def build_xp(ds: Dataset, horizon: int,
              moves: dict[int, dict] | None = None,
-             form: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+             form: pd.DataFrame | None = None,
+             logs: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (xp_matrix wide, components long) for the next `horizon` GWs."""
     from .moves import arrival_flags
     last_rates = last_season_player_rates()
@@ -127,7 +128,7 @@ def build_xp(ds: Dataset, horizon: int,
     lambdas = fixture_lambdas(ds, strengths)
     moves = moves or {}
     flags = arrival_flags(ds, last_rates, moves, form)
-    minutes = build_minutes(ds, last_rates, moves, flags, form)
+    minutes = build_minutes(ds, last_rates, moves, flags, form, logs)
     rates = build_rates(ds, last_rates, flags)
     # attack-uplift cap applies to evidence earned elsewhere, not to returners
     capped = set(flags.loc[flags["adjusted"].isin(["move", "arrival"]), "id"].astype(int))
@@ -142,8 +143,13 @@ def build_xp(ds: Dataset, horizon: int,
     baseline_conc = {int(t): strengths.baseline_conceded(int(t))
                      for t in ds.teams["id"]}
 
-    df = rates.merge(minutes[["id", "avail", "p_start", "p_appear", "p60", "xmins"]],
-                     on="id")
+    df = rates.merge(minutes[["id", "avail", "p_start", "p_appear", "p60", "xmins",
+                              "cover_for", "squeeze"]], on="id")
+    # knock-on flags: cover beats the thin/none labels, never the club-move ones
+    cov = df["cover_for"].fillna("") != ""
+    df.loc[cov & df["adjusted"].isin(["", "thin"]), "adjusted"] = "cover"
+    sq = df["squeeze"].fillna(False).astype(bool)
+    df.loc[sq & (df["adjusted"] == ""), "adjusted"] = "squeeze"
     comp_rows = []
     for _, p in df.iterrows():
         pos, team = p["pos"], int(p["team"])
@@ -181,7 +187,7 @@ def build_xp(ds: Dataset, horizon: int,
     matrix = df[["id", "code", "web_name", "pos", "team", "team_short", "now_cost",
                  "status", "chance_of_playing_next_round", "news",
                  "selected_by_percent", "avail", "p_start", "p_appear", "xmins",
-                 "adjusted", "adj_games"]
+                 "adjusted", "adj_games", "cover_for"]
                 ].merge(wide.reset_index(), on="id")
     xp_cols = [c for c in matrix.columns if c.startswith("xp_gw")]
     matrix["xp_total"] = matrix[xp_cols].sum(axis=1)

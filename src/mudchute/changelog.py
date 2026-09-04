@@ -10,10 +10,27 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.8"
+MODEL_VERSION = "1.9"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.9",
+        "date": "4 Sep 2026",
+        "title": "Knock-on minutes: slot model",
+        "detail": "A club's minutes belong to positional slots read from its "
+                  "formation shape. A known absence (injured/suspended, "
+                  "chance <= 25%) of a would-be starter passes his slot to fit "
+                  "teammates in proportion to their own chances and headroom, "
+                  "guided by who historically covered him once 5+ absence "
+                  "games exist; an unfillable slot spills to the adjacent "
+                  "position; an oversubscribed group scales down. "
+                  "Beneficiaries keep their own rates and are flagged "
+                  "'covering for X'.",
+        "impact": "Cover is priced on the day the absence is known rather "
+                  "than after the recency window catches up: Isak with "
+                  "Ekitike out goes from P(start) 0.80 to ~0.97.",
+    },
     {
         "version": "1.8",
         "date": "4 Sep 2026",
