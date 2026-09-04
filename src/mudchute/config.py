@@ -45,10 +45,6 @@ class Settings:
     ft_end_values: list[float] = field(default_factory=lambda: [1.5, 1.0, 0.6])
     churn_penalty: float = 0.05
     move_threshold: float = 1.0
-    lock: list[str] = field(default_factory=list)
-    ban: list[str] = field(default_factory=list)
-    force_transfers: int | None = None
-    no_hits: bool = False
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -58,7 +54,6 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 def load_settings() -> Settings:
     s = _read_yaml(CONFIG / "settings.yaml")
-    o = _read_yaml(CONFIG / "overrides.yaml")
     return Settings(
         team_id=int(s["team_id"]),
         free_transfers=(None if str(s.get("free_transfers", "auto")).lower() == "auto"
@@ -77,8 +72,4 @@ def load_settings() -> Settings:
         ft_end_values=[float(v) for v in s.get("ft_end_values", [1.5, 1.0, 0.6])],
         churn_penalty=float(s.get("churn_penalty", 0.05)),
         move_threshold=float(s.get("move_threshold", 1.0)),
-        lock=list(o.get("lock") or []),
-        ban=list(o.get("ban") or []),
-        force_transfers=o.get("force_transfers"),
-        no_hits=bool(o.get("no_hits") or False),
     )

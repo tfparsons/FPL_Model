@@ -31,6 +31,11 @@ independent sub-models:
   produced), giving P(60+ minutes) and expected minutes. Injury flags
   *discount* a player, never remove him — a 75%-flagged player keeps 75% of
   his xP and the solver weighs him against the alternatives.
+  Evidence earned at another club doesn't count: a mid-season mover, a
+  summer signing or a player with no PL record is rebuilt from a fresh
+  prior, with the new club's games dominating fast — in both directions —
+  until the club has played four games. The dashboard shows such xP in
+  orange.
 - **Rates** — per-90 goal threat, assists, saves, bonus, defensive
   contribution, blended from two seasons with shrinkage toward positional
   priors so a hot fortnight doesn't read as a new true talent level.
@@ -198,6 +203,8 @@ fine-grained PAT scoped to Actions on the one repo).
 - **[docs/architecture.html](docs/architecture.html)** — the full
   information architecture: every pipeline drawn, every formula and
   threshold written down.
+- **[docs/BACKLOG.md](docs/BACKLOG.md)** — what's next, ordered by where the
+  backtest says the model actually loses points.
 - **[VALIDATION.md](VALIDATION.md)** — the honest backtest: where the model
   beats naive baselines, where it doesn't, and the simulations behind the
   decision thresholds.

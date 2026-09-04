@@ -20,6 +20,8 @@ ASSIST_PTS = 3
 LAST_SEASON_WEIGHT = 0.6     # weight on last-season minutes vs current
 LAST_SEASON_MINS_CAP = 3000
 PRIOR_MINS = 600             # pseudo-minutes of positional prior
+ARRIVAL_PRIOR_MINS = 300     # arrivals/movers: let early signs count sooner
+ARRIVAL_LAST_SCALE = 0.5     # ...and trust rates earned at another club less
 BONUS_PRIOR_MINS = 900       # bonus is noisy — shrink harder
 PREMIUM_PRICE = 80           # 8.0m+: use an upper-quartile prior, not the median
 
@@ -42,9 +44,10 @@ def _position_priors(last_rates: pd.DataFrame, players: pd.DataFrame) -> pd.Data
 
 
 def _blend(rate_last: float, mins_last: float, rate_cur: float, mins_cur: float,
-           prior: float, prior_mins: float = PRIOR_MINS) -> float:
+           prior: float, prior_mins: float = PRIOR_MINS,
+           last_scale: float = 1.0) -> float:
     """Minutes-weighted blend of last season, current season, and prior."""
-    w_last = min(mins_last, LAST_SEASON_MINS_CAP) * LAST_SEASON_WEIGHT \
+    w_last = min(mins_last, LAST_SEASON_MINS_CAP) * LAST_SEASON_WEIGHT * last_scale \
         if not np.isnan(rate_last) else 0.0
     r_last = 0.0 if np.isnan(rate_last) else rate_last
     w_cur = mins_cur if not np.isnan(rate_cur) else 0.0
@@ -54,9 +57,15 @@ def _blend(rate_last: float, mins_last: float, rate_cur: float, mins_cur: float,
     return num / den
 
 
-def build_rates(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
+def build_rates(ds: Dataset, last_rates: pd.DataFrame,
+                flags: pd.DataFrame | None = None) -> pd.DataFrame:
     """Blended per-90 scoring rates per player."""
     players = ds.players.merge(last_rates, on="code", how="left")
+    if flags is not None:
+        players = players.merge(flags, on="id", how="left")
+    else:
+        players["adjusted"] = ""
+    arrival = players["adjusted"].fillna("").isin(["move", "arrival"])
     priors = _position_priors(last_rates, ds.players)
     players = players.merge(priors, on="pos", how="left")
 
@@ -77,7 +86,9 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
 
     out = players[["id", "code", "web_name", "pos", "team", "team_short",
                    "now_cost", "status", "chance_of_playing_next_round",
-                   "news", "selected_by_percent"]].copy()
+                   "news", "selected_by_percent", "adjusted", "adj_games"]].copy()
+    out["adjusted"] = out["adjusted"].fillna("")
+    out["adj_games"] = out["adj_games"].fillna(0).astype(int)
     premium = players["now_cost"] >= PREMIUM_PRICE
     for c in ["xg90", "xa90", "saves90", "bonus90", "yellow90"]:
         prior = players[f"prior_{c}"].copy()
@@ -86,10 +97,12 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
             prior[premium] = players.loc[premium, hi]
         prior_mins = BONUS_PRIOR_MINS if c == "bonus90" else PRIOR_MINS
         out[c] = [
-            _blend(pl_last, ml, pc, mc, pr, prior_mins)
-            for pl_last, ml, pc, mc, pr in zip(
+            _blend(pl_last, ml, pc, mc, pr,
+                   ARRIVAL_PRIOR_MINS if arr else prior_mins,
+                   ARRIVAL_LAST_SCALE if arr else 1.0)
+            for pl_last, ml, pc, mc, pr, arr in zip(
                 players[f"{c}_last"], players["mins_last"].fillna(0),
-                cur[c], mins_cur, prior.fillna(0))
+                cur[c], mins_cur, prior.fillna(0), arrival)
         ]
     # Defensive contribution: P(hit threshold per full appearance), blended in
     # appearance-count space. (Current-season counts aren't cleanly exposed in
@@ -101,13 +114,18 @@ def build_rates(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def build_xp(ds: Dataset, horizon: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_xp(ds: Dataset, horizon: int,
+             moves: dict[int, dict] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (xp_matrix wide, components long) for the next `horizon` GWs."""
+    from .moves import arrival_flags
     last_rates = last_season_player_rates()
     strengths = build_strengths(ds)
     lambdas = fixture_lambdas(ds, strengths)
-    minutes = build_minutes(ds, last_rates)
-    rates = build_rates(ds, last_rates)
+    moves = moves or {}
+    flags = arrival_flags(ds, last_rates, moves)
+    minutes = build_minutes(ds, last_rates, moves, flags)
+    rates = build_rates(ds, last_rates, flags)
+    capped = set(flags.loc[flags["adjusted"] != "", "id"].astype(int))
 
     gws = list(range(ds.next_gw, min(ds.next_gw + horizon, 39)))
     lam_by_team_gw: dict[tuple[int, int], list[pd.Series]] = {}
@@ -130,6 +148,10 @@ def build_xp(ds: Dataset, horizon: int) -> tuple[pd.DataFrame, pd.DataFrame]:
                      saves=0.0, defcon=0.0, bonus=0.0, cards=0.0)
             for f in fixtures:
                 att_mult = f["lam_for"] / baseline_goals[team]
+                if int(p["id"]) in capped:
+                    # rates earned elsewhere x new club's firepower would
+                    # double-count; no uplift until the role is established
+                    att_mult = min(att_mult, 1.0)
                 conc_mult = f["lam_against"] / baseline_conc[team]
                 share = p["xmins"] / 90.0
                 c["appearance"] += p["p60"] * 2 + (p["p_appear"] - p["p60"]) * 1
@@ -153,7 +175,8 @@ def build_xp(ds: Dataset, horizon: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     wide.columns = [f"xp_gw{g}" for g in wide.columns]
     matrix = df[["id", "code", "web_name", "pos", "team", "team_short", "now_cost",
                  "status", "chance_of_playing_next_round", "news",
-                 "selected_by_percent", "avail", "p_start", "p_appear", "xmins"]
+                 "selected_by_percent", "avail", "p_start", "p_appear", "xmins",
+                 "adjusted", "adj_games"]
                 ].merge(wide.reset_index(), on="id")
     xp_cols = [c for c in matrix.columns if c.startswith("xp_gw")]
     matrix["xp_total"] = matrix[xp_cols].sum(axis=1)

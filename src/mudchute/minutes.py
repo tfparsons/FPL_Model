@@ -16,6 +16,7 @@ import pandas as pd
 from .data import Dataset
 
 CURRENT_WEIGHT_K = 1.5   # team games for current season to reach 40% weight
+ARRIVAL_WEIGHT_K = 1.0   # movers/arrivals: new-club evidence dominates faster
 DEFAULT_MINS_PER_START = 78.0
 DEFAULT_P60_GIVEN_START = 0.85
 DEFAULT_SUB_PROB = 0.15
@@ -52,8 +53,12 @@ def _price_prior_start_rate(now_cost: int, pos: str) -> float:
     return 0.30
 
 
-def build_minutes(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
+def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
+                  moves: dict[int, dict] | None = None,
+                  flags: pd.DataFrame | None = None) -> pd.DataFrame:
     """Per-player minutes profile (per-fixture quantities)."""
+    moves = moves or {}
+    adj = (flags.set_index("id")["adjusted"].to_dict() if flags is not None else {})
     players = ds.players.merge(last_rates, on="code", how="left")
 
     # Games each team has actually started this season (live GWs count).
@@ -85,9 +90,28 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame) -> pd.DataFrame:
         if (p["now_cost"] >= 100 and p["status"] == "a"
                 and pd.notna(p.get("mins_last")) and p["mins_last"] >= 2000):
             prior = max(prior, 0.90)
+        starts_cur = float(p["starts"])
+        k_cur = CURRENT_WEIGHT_K
+        pid = int(p["id"])
+        if pid in moves:
+            # Mid-season mover: the old club's starts are not evidence about
+            # the new pecking order. Start from the price prior and let the
+            # new club's games decide.
+            mv = moves[pid]
+            n_cur = int(mv["games_since"])
+            starts_cur = max(starts_cur - float(mv["starts_at_move"]), 0.0)
+            prior = _price_prior_start_rate(p["now_cost"], p["pos"])
+            k_cur = ARRIVAL_WEIGHT_K
+        elif adj.get(pid) == "arrival":
+            # Summer signing / no PL record: last season's pattern (if any)
+            # was at another club — meet it halfway with the price prior,
+            # and let this season's games at the new club dominate quickly.
+            price_prior = _price_prior_start_rate(p["now_cost"], p["pos"])
+            prior = 0.5 * (prior + price_prior) if pd.notna(full) else price_prior
+            k_cur = ARRIVAL_WEIGHT_K
         if n_cur > 0:
-            cur_rate = min(p["starts"] / n_cur, 1.0)
-            w = n_cur / (n_cur + CURRENT_WEIGHT_K)
+            cur_rate = min(starts_cur / n_cur, 1.0)
+            w = n_cur / (n_cur + k_cur)
             base_start = w * cur_rate + (1 - w) * prior
         else:
             base_start = prior

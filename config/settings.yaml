@@ -1,4 +1,4 @@
-# Model settings. You rarely need to touch this file — overrides.yaml is the one to edit.
+# Model settings. You rarely need to touch this file — there are no manual knobs; adjustments live in the model.
 
 team_id: 0        # <- your FPL team id (from your team page URL)
 

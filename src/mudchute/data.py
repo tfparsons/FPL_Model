@@ -238,6 +238,8 @@ def last_season_player_rates(season: str = "2025-26",
         })
 
     rates = gws.groupby("code").apply(agg, include_groups=False).reset_index()
+    team_last = raw.drop_duplicates("code").set_index("code")["team_code"]
+    rates["team_code_last"] = rates["code"].map(team_last)
     return rates
 
 

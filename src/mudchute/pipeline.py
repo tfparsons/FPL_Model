@@ -11,6 +11,7 @@ import pandas as pd
 from .changelog import MODEL_VERSION
 from .config import PROCESSED, Settings, load_settings
 from .data import Dataset, load_dataset
+from .moves import detect_club_moves
 from .robustness import run_robustness
 from .schedule import (fmt_uk, gw_breaks, gw_schedule, horizon_notes,
                        rerun_guidance, schedule_changes, unscheduled_fixtures)
@@ -38,23 +39,6 @@ def build_pool(matrix: pd.DataFrame, ds: Dataset, settings: Settings) -> pd.Data
     return pool.reset_index(drop=True)
 
 
-def resolve_names(names: list[str], matrix: pd.DataFrame) -> set[int]:
-    """Map web names from overrides.yaml to player ids (case-insensitive)."""
-    out = set()
-    for name in names:
-        hits = matrix[matrix["web_name"].str.casefold() == str(name).casefold()]
-        if len(hits) == 0:
-            hits = matrix[matrix["web_name"].str.casefold().str.contains(
-                str(name).casefold(), regex=False)]
-        if len(hits) == 0:
-            print(f"WARNING: override name '{name}' matched no player — ignored")
-            continue
-        pick = hits.nlargest(1, "xp_total")["id"].iloc[0]
-        if len(hits) > 1:
-            names_found = ", ".join(hits["web_name"].tolist())
-            print(f"NOTE: '{name}' matched [{names_found}] — using highest-xP")
-        out.add(int(pick))
-    return out
 
 
 def _fixture_before_deadline(ds: Dataset, team_id: int) -> bool:
@@ -86,7 +70,12 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     settings = load_settings()
     ds = load_dataset()
     print(f"Building xP matrix for GW{ds.next_gw}-{ds.next_gw + settings.horizon - 1} ...")
-    matrix, comps = build_xp(ds, settings.horizon)
+    moves = detect_club_moves(ds)
+    if moves:
+        print("Club moves in the settling window: " + ", ".join(
+            f"{mv['name']} ({mv['games_since']} game{'s' if mv['games_since'] != 1 else ''} at new club)"
+            for mv in moves.values()))
+    matrix, comps = build_xp(ds, settings.horizon, moves)
     write_outputs(matrix, comps)
 
     gws = [int(c.replace("xp_gw", "")) for c in matrix.columns
@@ -102,8 +91,8 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     else:
         print(f"Free transfers (manual override in settings.yaml): {settings.free_transfers}")
 
-    lock_ids = resolve_names(settings.lock, matrix)
-    ban_ids = resolve_names(settings.ban, matrix)
+    lock_ids: set[int] = set()
+    ban_ids: set[int] = set()
     initial = set(int(i) for i in ds.squad["id"])
     bank0 = int(round(ds.bank * 10))
 
@@ -111,7 +100,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     baseline = solve_plan(
         pool, gws, initial, bank0, settings,
         lock_ids=lock_ids, ban_ids=ban_ids,
-        force_transfers=settings.force_transfers, no_hits=settings.no_hits,
+        force_transfers=None, no_hits=False,
         mip_gap=0.002, time_limit=120.0)
     print(f"  status={baseline.status} objective={baseline.objective:.1f}")
     if not baseline.plans:
@@ -121,11 +110,10 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     # a human should not. If the hit plan doesn't beat the best no-hit plan by
     # hit_threshold, the no-hit plan becomes the recommendation.
     hit_decision = None
-    if baseline.plans[0].hits > 0 and not settings.no_hits:
+    if baseline.plans[0].hits > 0:
         no_hit = solve_plan(
             pool, gws, initial, bank0, settings,
             lock_ids=lock_ids, ban_ids=ban_ids, no_hits=True,
-            force_transfers=settings.force_transfers,
             mip_gap=0.002, time_limit=120.0)
         if no_hit.plans:
             gain = baseline.objective - no_hit.objective
@@ -145,7 +133,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     # gets the package structure: hold / best single / the package.
     decomposition = None
     move_decision = None
-    if settings.force_transfers is None and baseline.plans[0].transfers_in:
+    if baseline.plans[0].transfers_in:
         hold_res = solve_plan(pool, gws, initial, bank0, settings,
                               lock_ids=lock_ids, ban_ids=ban_ids,
                               force_transfers=0, mip_gap=0.002, time_limit=90.0)
@@ -190,7 +178,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
               f"(up to {settings.robustness_max_runs} if ambiguous"
               f"{', deep forced' if force_deep else ''}) ...")
         robustness = run_robustness(pool, gws, initial, bank0, settings,
-                                    baseline, lock_ids, ban_ids, settings.no_hits,
+                                    baseline, lock_ids, ban_ids, False,
                                     escalate_to=settings.robustness_max_runs,
                                     force_deep=force_deep)
         print(f"  headline move survives {robustness['survival']:.0%} of "
@@ -205,7 +193,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
             print(f"Chip analysis: {chip} ...")
             res = solve_plan(
                 pool, gws, initial, bank0, settings, chip=chip,
-                lock_ids=lock_ids, ban_ids=ban_ids, no_hits=settings.no_hits,
+                lock_ids=lock_ids, ban_ids=ban_ids, no_hits=False,
                 mip_gap=0.005, time_limit=60.0)
             if res.plans:
                 chips[chip] = {
@@ -477,9 +465,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
             "chips_available": ds.chips_available,
             "decay": settings.decay,
             "horizon": settings.horizon,
-            "overrides": {"lock": sorted(lock_ids), "ban": sorted(ban_ids),
-                          "force_transfers": settings.force_transfers,
-                          "no_hits": settings.no_hits},
+            "club_moves": {str(k): v for k, v in moves.items()},
         },
         "baseline": {
             "status": baseline.status,

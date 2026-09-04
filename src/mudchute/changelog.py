@@ -10,10 +10,27 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.5"
+MODEL_VERSION = "1.6"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.6",
+        "date": "3 Sep 2026",
+        "title": "Club-move rule",
+        "detail": "Players whose evidence was earned at another club — "
+                  "mid-season movers, summer signings, no-PL-record arrivals "
+                  "— are rebuilt from a fresh prior: old-club starts don't "
+                  "count, new-club games dominate fast, rates from elsewhere "
+                  "are shrunk harder and the new club's attack uplift is "
+                  "capped, until the club has played 4 games. Flagged in the "
+                  "UI. The config overrides mechanic (lock/ban/force/no-hits) "
+                  "is removed: adjustments belong in the model, not a text "
+                  "file.",
+        "impact": "A deadline-day signing starts as a genuine question mark "
+                  "(~2.8 xP rather than 4.7) and two games settle it either "
+                  "way, instead of a month of assumed starts.",
+    },
     {
         "version": "1.5",
         "date": "1 Sep 2026",

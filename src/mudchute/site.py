@@ -225,6 +225,11 @@ tr:last-child td { border-bottom: none; }
 .brkrow td { text-align: center; color: var(--muted); font-size: .76rem;
   background: var(--chipbg); padding: 4px 8px; letter-spacing: .02em; }
 .flag { background: #fee4e2; color: #b42318; font-size: .7rem; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
+.adjxp { color: #c46a00 !important; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .adjxp { color: #f2a33a !important; } }
+:root[data-theme="dark"] .adjxp { color: #f2a33a !important; }
+.adjtag { font-size: .6rem; background: #f2a33a; color: #2b1c04; border-radius: 4px; padding: 1px 5px;
+  margin-left: 6px; font-weight: 800; vertical-align: middle; text-transform: uppercase; letter-spacing: .04em; }
 .outbadge { background: var(--pink); color: #fff; font-size: .68rem; padding: 1px 6px; border-radius: 6px; font-weight: 800; }
 .news { color: var(--muted); font-size: .75rem; }
 .badge { background: var(--pink); color: #fff; font-size: .68rem; padding: 2px 7px; border-radius: 6px; font-weight: 700; vertical-align: middle; }
@@ -597,6 +602,13 @@ GENERAL_JS = r"""
   function step(d) { var k = 0; D.q.forEach(function (t) { if (d > t) k++; }); return k; }
   function esc(x) { return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
   function sum(arr, k) { var t = 0; for (var i = 0; i < k; i++) t += arr[i]; return t; }
+  function adjAttr(p) {
+    if (!p.adj) return '';
+    var why = p.adj === 'move' ? 'moved club mid-season, so old-club starts do not count'
+                               : 'new to this club or league, so last season\'s record is from elsewhere';
+    return ' class="adjxp" data-tip="xP rebuilt on thin evidence: ' + why + '. ' + p.ag +
+      ' game' + (p.ag === 1 ? '' : 's') + ' at the new club so far; attack uplift capped until 4."';
+  }
 
   function renderPlayers() {
     var rows = D.players.map(function (p) {
@@ -627,7 +639,7 @@ GENERAL_JS = r"""
       var flag = p.s && p.s !== 'a' ? ' <span class="flag">' + esc(p.s.toUpperCase()) + '</span>' : '';
       h += '<tr' + (own ? ' class="own"' : '') + '><td class="num">' + (i + 1) + '</td><td>' + esc(p.n) + flag +
         (own ? '<span class="owntag">MINE</span>' : '') + '</td><td>' + p.pos + '</td><td>' + esc(p.t) +
-        '</td><td class="num">£' + p.p.toFixed(1) + '</td><td class="num"><b>' + r.xp.toFixed(1) + '</b></td>' +
+        '</td><td class="num">£' + p.p.toFixed(1) + '</td><td class="num"><b' + adjAttr(p) + '>' + r.xp.toFixed(1) + '</b></td>' +
         '<td class="num">' + r.gw1.toFixed(1) + '</td><td class="num">' + r.x8.toFixed(1) + '</td>' +
         '<td class="num">' + r.val.toFixed(2) + '</td>' +
         '<td class="num">' + p.f.toFixed(1) + '</td><td class="num">' + p.tp + '</td>' +
@@ -910,6 +922,8 @@ def _general_body(matrix: pd.DataFrame, ds, gws: list[int], owned: set[int],
             "t": str(r["team_short"]), "p": round(float(r["now_cost"]) / 10, 1),
             "o": float(r["selected_by_percent"]), "s": str(r["status"]),
             "m": round(float(r["xmins"]), 1),
+            "adj": str(r.get("adjusted") or "") if isinstance(r.get("adjusted"), str) else "",
+            "ag": int(r.get("adj_games") or 0),
             "tp": int(boot.at[pid_, "total_points"]),
             "f": float(boot.at[pid_, "form"]),
             "x": [round(float(r[f"xp_gw{g}"]), 2) for g in gws],
@@ -937,7 +951,8 @@ def _general_body(matrix: pd.DataFrame, ds, gws: list[int], owned: set[int],
     ticker_legend = "".join(f"<i style='background:{c}'></i>" for c in DIFF_RAMP)
     return f"""
 <div class="card"><h2>Horizon {info("Expected points already account for minutes, "
-    "fixtures, doubles and blanks; the fixture scores summarise the same model at team level.")}</h2>
+    "fixtures, doubles and blanks; the fixture scores summarise the same model at team level. "
+    "Orange xP = rebuilt on thin evidence after a club move or arrival — hover it for details.")}</h2>
   <div class="controls"><label for="hrange">Look ahead</label>
     <input type="range" id="hrange" min="1" max="{len(gws)}" value="5" aria-label="Gameweeks to look ahead">
     <span class="hrz" id="hlabel"></span></div></div>
@@ -999,6 +1014,24 @@ def build_site() -> None:
     def price(p): return f"{m.at[p, 'now_cost']/10:.1f}"
     def xp(p, g): return float(m.at[p, f"xp_gw{g}"])
     def xp_near(p): return sum(xp(p, g) for g in near)
+    adj_of = (m["adjusted"].fillna("").to_dict() if "adjusted" in m.columns else {})
+    adj_games = (m["adj_games"].fillna(0).to_dict() if "adj_games" in m.columns else {})
+
+    def adj_tip(pid):
+        a = adj_of.get(pid, "")
+        if not a:
+            return ""
+        g = int(adj_games.get(pid, 0))
+        why = ("moved club mid-season, so old-club starts don't count"
+               if a == "move" else
+               "new to this club or league, so last season's record is from elsewhere")
+        return (f"xP rebuilt on thin evidence: {why}. {g} game{'s' if g != 1 else ''} "
+                f"at the new club so far; attack uplift capped until 4.")
+
+    def xpv(pid, val, fmt="{:.1f}"):
+        t = adj_tip(pid)
+        txt = fmt.format(val)
+        return f"<span class='adjxp' data-tip='{ESC(t)}'>{txt}</span>" if t else txt
 
     plans = plan["baseline"]["plans"]
     first = plans[0]
@@ -1196,8 +1229,10 @@ def build_site() -> None:
         rate_txt = (f"this swap appears in <b>{rate:.0%}</b> of shaken scenarios"
                     if rate is not None else "")
         def block(pid_, price_, cls):
+            tag_ = (f"<span class='adjtag' data-tip='{ESC(adj_tip(pid_))}'>new club</span>"
+                    if adj_tip(pid_) else "")
             return (f"<div class='sp {cls}'>{shirt_svg(TEAM_COLOURS.get(team(pid_), '#888'))}"
-                    f"<div><b>{name(pid_)}</b><div class='news'>{team(pid_)} · "
+                    f"<div><b>{name(pid_)}</b>{tag_}<div class='news'>{team(pid_)} · "
                     f"{ESC(str(m.at[pid_, 'pos']))} · £{price_:.1f}</div></div></div>")
         return f"""<div class="swap{' heldswap' if held and not done else ''}">
   <span class="ribbon {'rb-done' if done else 'rb-pay' if role == 'payload' else 'rb-fin'}">{'✓ MADE' if done else 'CONSIDERED — below the bar' if held else ribbon}</span>
@@ -1454,7 +1489,7 @@ def build_site() -> None:
         price_m = m.at[p, "now_cost"] / 10
         value = xp(p, next_gw) / price_m
         return (f"<div class='pcard{' newin' if new_ else ''}'>{badge}{shirt_svg(col)}<div class='nm'>{name(p)}</div>"
-                f"<div class='xp'>{xp(p, next_gw):.1f}</div>"
+                f"<div class='xp'>{xpv(p, xp(p, next_gw))}</div>"
                 f"<div class='pmeta'>£{price_m:.1f} · {value:.2f}/£</div></div>")
     by_pos = {"GKP": [], "DEF": [], "MID": [], "FWD": []}
     for p in first["lineup"]:
@@ -1600,8 +1635,8 @@ def build_site() -> None:
                 f"<td class='num'>{price_arrow(pid)}</td>"
                 f"<td class='num'>{float(m.at[pid, 'selected_by_percent']):.0f}%</td>"
                 f"<td class='num'>{int(elements.get(pid, {}).get('total_points', 0))}</td>"
-                f"<td class='num'>{xp(pid, next_gw):.1f}</td>"
-                f"<td class='num'>{xp_near(pid):.1f}</td>"
+                f"<td class='num'>{xpv(pid, xp(pid, next_gw))}</td>"
+                f"<td class='num'>{xpv(pid, xp_near(pid))}</td>"
                 f"<td class='num'>{float(m.at[pid, 'xp_total']) * ((38 - next_gw + 1) / len(gws)):.0f}</td></tr>")
 
     mkt = matrix[~matrix["id"].isin(owned)].copy()
@@ -1841,7 +1876,8 @@ def build_site() -> None:
 </div>
 <div class="card"><h2>GW{next_gw} line-up {info(
     "Each card: expected points this gameweek, then price and expected points per £1m — value for "
-    "money. C = captain (his score counts double), V = vice, who steps in if the captain doesn't play.")}</h2>
+    "money. C = captain (his score counts double), V = vice, who steps in if the captain doesn't play. "
+    "Orange xP = rebuilt on thin evidence after a club move or arrival — hover it for details.")}</h2>
   <div class="pitch">{pitch}<div class="bench">{bench}</div></div></div>
 <div class="card"><h2>Chips {info(
     "The verdict is the model's judgement. 'Would add' answers one narrow question: expected points a chip "
