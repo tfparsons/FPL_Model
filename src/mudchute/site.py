@@ -225,6 +225,12 @@ tr:last-child td { border-bottom: none; }
 .brkrow td { text-align: center; color: var(--muted); font-size: .76rem;
   background: var(--chipbg); padding: 4px 8px; letter-spacing: .02em; }
 .flag { background: #fee4e2; color: #b42318; font-size: .7rem; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
+:root { --sq: #6a2c91; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sq: #9d6fff; } }
+:root[data-theme="dark"] { --sq: #9d6fff; }
+.sqxp { color: var(--sq) !important; }
+.sqtag { font-size: .6rem; background: var(--sq); color: #fff; border-radius: 4px; padding: 1px 5px;
+  margin-left: 6px; font-weight: 800; vertical-align: middle; text-transform: uppercase; letter-spacing: .04em; }
 .adjxp { color: #c46a00 !important; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .adjxp { color: #f2a33a !important; } }
 :root[data-theme="dark"] .adjxp { color: #f2a33a !important; }
@@ -604,8 +610,8 @@ GENERAL_JS = r"""
   function sum(arr, k) { var t = 0; for (var i = 0; i < k; i++) t += arr[i]; return t; }
   function adjAttr(p) {
     if (!p.adj) return '';
-    if (p.adj === 'cover') return ' class="adjxp" data-tip="xP lifted by cover: ' + esc(p.cv || 'a regular') + ' out at this club, so the starting slot passes to the fit candidates in proportion to their own chances. Own scoring rates, more minutes."';
-    if (p.adj === 'squeeze') return ' class="adjxp" data-tip="xP trimmed by a squeeze: more fit starters than slots in this position at this club, so start probabilities are scaled to fit."';
+    if (p.adj === 'cover') return ' class="sqxp" data-tip="Squad competition: ' + esc(p.cv || 'a regular') + ' out at this club, so the starting slot passes to the fit candidates in proportion to their own chances. Own scoring rates, more minutes."';
+    if (p.adj === 'squeeze') return ' class="sqxp" data-tip="Squad competition: more fit starters than slots in this position at this club, so start probabilities are scaled to fit."';
     if (p.adj === 'return') return ' class="adjxp" data-tip="xP eased in: a regular back from a 3+ game absence; start probability capped and minutes trimmed until 2 games of evidence (' + p.ag + ' so far)."';
     if (p.adj === 'thin') return ' class="adjxp" data-tip="xP on a thin prior: last season was under 750 minutes, so it says little about this year\'s role; the prior leans on price and this season\'s games weigh more (' + p.ag + ' so far; settles at 4)."';
     var why = p.adj === 'move' ? 'moved club mid-season, so old-club starts do not count'
@@ -647,7 +653,7 @@ GENERAL_JS = r"""
         '<td class="num"><span' + adjAttr(p) + '>' + r.gw1.toFixed(1) + '</span></td><td class="num"><span' + adjAttr(p) + '>' + r.x8.toFixed(1) + '</span></td>' +
         '<td class="num"><span' + adjAttr(p) + '>' + r.val.toFixed(2) + '</span></td>' +
         '<td class="num">' + p.f.toFixed(1) + '</td><td class="num">' + p.tp + '</td>' +
-        '<td class="num">' + Math.round(p.m) + '</td><td class="num">' + p.o.toFixed(0) + '%</td></tr>';
+        '<td class="num"><span' + adjAttr(p) + '>' + Math.round(p.m) + '</span></td><td class="num">' + p.o.toFixed(0) + '%</td></tr>';
     });
     $('prows').innerHTML = h || '<tr><td colspan="10">No players match.</td></tr>';
     $('pmore').style.display = (!showAll && rows.length > 60) ? 'block' : 'none';
@@ -669,7 +675,7 @@ GENERAL_JS = r"""
       var y = 4 + i * per, w = (W - L - 70) * r.xp / vmax;
       svg += '<text x="' + (L - 8) + '" y="' + (y + 15) + '" text-anchor="end" fill="var(--ink)" font-size="12">' + esc(r.p.n) + '</text>' +
         '<rect x="' + L + '" y="' + (y + 3) + '" width="' + w.toFixed(1) + '" height="16" rx="4" fill="var(--series-alt2)" data-tip="' + esc(r.p.n) + ' (' + esc(r.p.t) + '): ' + r.xp.toFixed(1) + ' xP over next ' + tn + ' GW"/>' +
-        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + (y + 15) + '" fill="' + (r.p.adj ? '#f2a33a' : 'var(--muted)') + '" font-size="11">' + r.xp.toFixed(1) + '</text>';
+        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + (y + 15) + '" fill="' + (r.p.adj === 'cover' || r.p.adj === 'squeeze' ? 'var(--sq)' : r.p.adj ? '#f2a33a' : 'var(--muted)') + '" font-size="11">' + r.xp.toFixed(1) + '</text>';
     });
     $('pchart').innerHTML = svg + '</svg>';
     $('tlabel').textContent = 'Next ' + tn + ' gameweeks (GW' + D.gws[0] + '\u2013' + D.gws[tn - 1] + ')';
@@ -957,7 +963,7 @@ def _general_body(matrix: pd.DataFrame, ds, gws: list[int], owned: set[int],
     return f"""
 <div class="card"><h2>Horizon {info("Expected points already account for minutes, "
     "fixtures, doubles and blanks; the fixture scores summarise the same model at team level. "
-    "Orange xP = adjusted by a rule (club move, new arrival, return from injury, injury-hit last season, or covering for an absent teammate) — hover it for details.")}</h2>
+    "Orange = evidence adjustment (club move, new arrival, return from injury, injury-hit last season). Purple = squad competition adjustment (covering for an absent teammate, or squeezed by a returner). Applies to xP and expected minutes — hover for details.")}</h2>
   <div class="controls"><label for="hrange">Look ahead</label>
     <input type="range" id="hrange" min="1" max="{len(gws)}" value="5" aria-label="Gameweeks to look ahead">
     <span class="hrz" id="hlabel"></span></div></div>
@@ -1029,12 +1035,12 @@ def build_site() -> None:
             return ""
         g = int(adj_games.get(pid, 0))
         if a == "cover":
-            return (f"xP lifted by cover: {cover_of.get(pid, 'a regular')} out at "
+            return (f"Squad competition: {cover_of.get(pid, 'a regular')} out at "
                     f"this club, so his starting slot passes to the fit "
                     f"candidates in proportion to their own chances. Own scoring "
                     f"rates, more minutes.")
         if a == "squeeze":
-            return ("xP trimmed by a squeeze: more fit starters than slots in "
+            return ("Squad competition: more fit starters than slots in "
                     "this position at this club, so everyone's start probability "
                     "is scaled to fit.")
         if a == "return":
@@ -1052,10 +1058,13 @@ def build_site() -> None:
         return (f"xP rebuilt on thin evidence: {why}. {g} game{'s' if g != 1 else ''} "
                 f"at the new club so far; attack uplift capped until 4.")
 
+    def adj_cls(pid):
+        return "sqxp" if adj_of.get(pid, "") in ("cover", "squeeze") else "adjxp"
+
     def xpv(pid, val, fmt="{:.1f}"):
         t = adj_tip(pid)
         txt = fmt.format(val)
-        return f"<span class='adjxp' data-tip='{ESC(t)}'>{txt}</span>" if t else txt
+        return f"<span class='{adj_cls(pid)}' data-tip='{ESC(t)}'>{txt}</span>" if t else txt
 
     plans = plan["baseline"]["plans"]
     first = plans[0]
@@ -1255,8 +1264,13 @@ def build_site() -> None:
         rate_txt = (f"this swap appears in <b>{rate:.0%}</b> of shaken scenarios"
                     if rate is not None else "")
         def block(pid_, price_, cls):
-            tag_ = (f"<span class='adjtag' data-tip='{ESC(adj_tip(pid_))}'>new club</span>"
-                    if adj_tip(pid_) else "")
+            tag_ = ""
+            if adj_tip(pid_):
+                a_ = adj_of.get(pid_, "")
+                word = {"cover": "cover", "squeeze": "squeezed", "return": "returning",
+                        "thin": "thin prior", "move": "new club", "arrival": "arrival"}.get(a_, "adjusted")
+                tag_ = (f"<span class='{'sqtag' if a_ in ('cover', 'squeeze') else 'adjtag'}' "
+                        f"data-tip='{ESC(adj_tip(pid_))}'>{word}</span>")
             return (f"<div class='sp {cls}'>{shirt_svg(TEAM_COLOURS.get(team(pid_), '#888'))}"
                     f"<div><b>{name(pid_)}</b>{tag_}<div class='news'>{team(pid_)} · "
                     f"{ESC(str(m.at[pid_, 'pos']))} · £{price_:.1f}</div></div></div>")
@@ -1903,7 +1917,7 @@ def build_site() -> None:
 <div class="card"><h2>GW{next_gw} line-up {info(
     "Each card: expected points this gameweek, then price and expected points per £1m — value for "
     "money. C = captain (his score counts double), V = vice, who steps in if the captain doesn't play. "
-    "Orange xP = adjusted by a rule (club move, new arrival, return from injury, injury-hit last season, or covering for an absent teammate) — hover it for details.")}</h2>
+    "Orange = evidence adjustment (club move, new arrival, return from injury, injury-hit last season). Purple = squad competition adjustment (covering for an absent teammate, or squeezed by a returner). Applies to xP and expected minutes — hover for details.")}</h2>
   <div class="pitch">{pitch}<div class="bench">{bench}</div></div></div>
 <div class="card"><h2>Chips {info(
     "The verdict is the model's judgement. 'Would add' answers one narrow question: expected points a chip "
