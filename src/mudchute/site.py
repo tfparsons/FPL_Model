@@ -641,8 +641,8 @@ GENERAL_JS = r"""
       h += '<tr' + (own ? ' class="own"' : '') + '><td class="num">' + (i + 1) + '</td><td>' + esc(p.n) + flag +
         (own ? '<span class="owntag">MINE</span>' : '') + '</td><td>' + p.pos + '</td><td>' + esc(p.t) +
         '</td><td class="num">£' + p.p.toFixed(1) + '</td><td class="num"><b' + adjAttr(p) + '>' + r.xp.toFixed(1) + '</b></td>' +
-        '<td class="num">' + r.gw1.toFixed(1) + '</td><td class="num">' + r.x8.toFixed(1) + '</td>' +
-        '<td class="num">' + r.val.toFixed(2) + '</td>' +
+        '<td class="num"><span' + adjAttr(p) + '>' + r.gw1.toFixed(1) + '</span></td><td class="num"><span' + adjAttr(p) + '>' + r.x8.toFixed(1) + '</span></td>' +
+        '<td class="num"><span' + adjAttr(p) + '>' + r.val.toFixed(2) + '</span></td>' +
         '<td class="num">' + p.f.toFixed(1) + '</td><td class="num">' + p.tp + '</td>' +
         '<td class="num">' + Math.round(p.m) + '</td><td class="num">' + p.o.toFixed(0) + '%</td></tr>';
     });
@@ -666,7 +666,7 @@ GENERAL_JS = r"""
       var y = 4 + i * per, w = (W - L - 70) * r.xp / vmax;
       svg += '<text x="' + (L - 8) + '" y="' + (y + 15) + '" text-anchor="end" fill="var(--ink)" font-size="12">' + esc(r.p.n) + '</text>' +
         '<rect x="' + L + '" y="' + (y + 3) + '" width="' + w.toFixed(1) + '" height="16" rx="4" fill="var(--series-alt2)" data-tip="' + esc(r.p.n) + ' (' + esc(r.p.t) + '): ' + r.xp.toFixed(1) + ' xP over next ' + tn + ' GW"/>' +
-        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + (y + 15) + '" fill="var(--muted)" font-size="11">' + r.xp.toFixed(1) + '</text>';
+        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + (y + 15) + '" fill="' + (r.p.adj ? '#f2a33a' : 'var(--muted)') + '" font-size="11">' + r.xp.toFixed(1) + '</text>';
     });
     $('pchart').innerHTML = svg + '</svg>';
     $('tlabel').textContent = 'Next ' + tn + ' gameweeks (GW' + D.gws[0] + '\u2013' + D.gws[tn - 1] + ')';
@@ -1190,17 +1190,19 @@ def build_site() -> None:
         # every one shown out vs in with the delta on the right
         keys = [k for k, _ in _drivers_of(pin)]
         in_d, out_d = _driver_sums(pin, keys), _driver_sums(pout, keys)
-        def cmp_row(label_, vo, vi, fo="{:.1f}", strong=False):
+        def cmp_row(label_, vo, vi, fo="{:.1f}", strong=False, xp_row=True):
             d = vi - vo
+            so = xpv(pout, vo, fo) if xp_row else fo.format(vo)
+            si = xpv(pin, vi, fo) if xp_row else fo.format(vi)
             return (f"<span>{ESC(label_)}</span>"
-                    f"<span class='num'>{fo.format(vo)}</span>"
-                    f"<span class='num'>{'<b>' if strong else ''}{fo.format(vi)}"
+                    f"<span class='num'>{so}</span>"
+                    f"<span class='num'>{'<b>' if strong else ''}{si}"
                     f"{'</b>' if strong else ''} <em class='delta{'' if d >= 0 else ' neg'}'>"
                     f"{d:+.1f}</em></span>")
         rows_html = cmp_row(f"xP next {len(near)}", xp_near(pout), xp_near(pin),
                             strong=True)
         rows_html += cmp_row("owned by %", float(m.at[pout, "selected_by_percent"]),
-                             float(m.at[pin, "selected_by_percent"]), "{:.0f}")
+                             float(m.at[pin, "selected_by_percent"]), "{:.0f}", xp_row=False)
         for k in keys:
             rows_html += cmp_row(DRV_FULL[k], out_d[k], in_d[k])
         out_dots, out_fdr = _fdr_dots(int(m.at[pout, "team"]))
@@ -1495,7 +1497,7 @@ def build_site() -> None:
         value = xp(p, next_gw) / price_m
         return (f"<div class='pcard{' newin' if new_ else ''}'>{badge}{shirt_svg(col)}<div class='nm'>{name(p)}</div>"
                 f"<div class='xp'>{xpv(p, xp(p, next_gw))}</div>"
-                f"<div class='pmeta'>£{price_m:.1f} · {value:.2f}/£</div></div>")
+                f"<div class='pmeta'>£{price_m:.1f} · {xpv(p, value, '{:.2f}')}/£</div></div>")
     by_pos = {"GKP": [], "DEF": [], "MID": [], "FWD": []}
     for p in first["lineup"]:
         by_pos[m.at[p, "pos"]].append(pcard(p))
@@ -1642,7 +1644,7 @@ def build_site() -> None:
                 f"<td class='num'>{int(elements.get(pid, {}).get('total_points', 0))}</td>"
                 f"<td class='num'>{xpv(pid, xp(pid, next_gw))}</td>"
                 f"<td class='num'>{xpv(pid, xp_near(pid))}</td>"
-                f"<td class='num'>{float(m.at[pid, 'xp_total']) * ((38 - next_gw + 1) / len(gws)):.0f}</td></tr>")
+                f"<td class='num'>{xpv(pid, float(m.at[pid, 'xp_total']) * ((38 - next_gw + 1) / len(gws)), '{:.0f}')}</td></tr>")
 
     mkt = matrix[~matrix["id"].isin(owned)].copy()
     mkt["xp_near_"] = mkt[[f"xp_gw{g}" for g in near]].sum(axis=1)
