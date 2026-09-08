@@ -1,7 +1,7 @@
 [project]
 name = "mudchute"
 version = "0.1.0"
-description = "FPL transfer optimisation for Real Mudchute: xP engine + multi-period MILP solver"
+description = "FPL transfer optimisation: xP engine + multi-period MILP solver"
 requires-python = ">=3.12"
 dependencies = [
     "requests>=2.32",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 
 import numpy as np
@@ -20,8 +21,6 @@ from .solver import solve_plan, solve_single_gw
 from .xp import build_xp, write_outputs
 
 PRICE_RISE_IMMINENT = 90.0  # projected_percent at offset 0/1 treated as "about to rise"
-WC_CONSIDER_GAIN = 20.0     # decayed xP a wildcard must show before "consider"
-CHIP_CONSIDER_GAIN = 8.0    # ditto for BB/TC/FH (and only with a double in sight)
 
 
 def build_pool(matrix: pd.DataFrame, ds: Dataset, settings: Settings) -> pd.DataFrame:
@@ -65,6 +64,57 @@ def _price_signal(player_row: pd.Series) -> dict:
         "imminent_fall": any(by_offset.get(o, 0) <= -PRICE_RISE_IMMINENT
                              for o in (0, 1)),
     }
+
+
+def _assess_chips(ds: Dataset, matrix: pd.DataFrame, plans: list,
+                  solver_chips: dict, fh_gains: dict[int, float], gws: list[int],
+                  settings: Settings) -> tuple[dict, dict]:
+    """Feed the chip strategy (chips.py) from the dataset, the xP matrix and
+    the baseline plan; returns (per-chip verdicts, the one-chip-per-week plan)."""
+    from .chips import assess, chip_calendar, config as chip_config, value_profiles
+
+    cal = chip_calendar(ds.chip_windows, ds.chips_played, ds.next_gw)
+    cfg = chip_config(settings.chips)
+    by_id = matrix.set_index("id")
+    xp_cols = {g: f"xp_gw{g}" for g in gws if f"xp_gw{g}" in matrix.columns}
+
+    def xp_at(pid: int, g: int) -> float:
+        col = xp_cols.get(g)
+        if col is None or pid not in by_id.index:
+            return 0.0
+        v = by_id.at[pid, col]
+        return float(v) if pd.notna(v) else 0.0
+
+    profiles = value_profiles(plans, xp_at, fh_gains)
+    team_of = {int(k): str(v) for k, v in by_id["team_short"].items()}
+    names = {int(k): str(v) for k, v in by_id["web_name"].items()}
+    # Fitness is a today measure (avail / p_start / xmins are per player, not
+    # per GW), so the bench-boost and injury-crisis tests read the current 15.
+    sq = by_id.loc[by_id.index.intersection(ds.squad["id"])]
+    fit = sq["avail"] >= float(cfg["fit_avail"])
+    squad_fit = {
+        "n_fit": int(fit.sum()), "n_squad": int(len(sq)),
+        "doubtful": [str(n) for n in sq.loc[~fit, "web_name"]],
+        "min_p_start": float(sq["p_start"].min()) if len(sq) else None,
+        "mean_xmins": float(sq["xmins"].mean()) if len(sq) else None,
+    }
+    # Doubles and blanks for every GW to the furthest expiry, so a double
+    # beyond the solver's view still counts as something to hold for.
+    top = max(st.expiry_gw for st in cal.values())
+    last_gw = int(ds.events["id"].max())
+    schedule = {}
+    for g in range(ds.next_gw, min(max(top, gws[-1]), last_gw) + 1):
+        sch = gw_schedule(ds, g)
+        schedule[g] = {"doubles": sch["doubles"], "blanks": sch["blanks"]}
+    per_chip, plan = assess(cal, profiles, solver_chips, plans, xp_at, team_of,
+                            squad_fit, schedule, gws, ds.next_gw, names=names,
+                            breaks=gw_breaks(ds, gws), cfg=cfg)
+    plan["squad_fit"] = squad_fit
+    plan["calendar"] = {c: {"window": list(st.window), "half": st.half,
+                            "available": st.available, "used_gw": st.used_gw,
+                            "runway": st.runway, "expiry_gw": st.expiry_gw}
+                        for c, st in cal.items()}
+    return per_chip, plan
 
 
 def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
@@ -190,11 +240,15 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
         print(f"  headline move survives {robustness['survival']:.0%} of "
               f"{robustness['runs']} runs")
 
-    chips = {}
+    chips: dict = {}
+    chip_plan: dict = {}
+    solver_chips: dict = {}
+    fh_gains: dict[int, float] = {}
     if not skip_chips:
-        chip_names = {"wildcard": "wildcard", "bboost": "bboost", "3xc": "3xc"}
-        for chip in ds.chips_available:
-            if chip not in chip_names:
+        # What each chip is worth if burned somewhere in this horizon with the
+        # transfers re-optimised around it: one extra solve per chip.
+        for chip in ("wildcard", "bboost", "3xc"):
+            if chip not in ds.chips_available:
                 continue
             print(f"Chip analysis: {chip} ...")
             res = solve_plan(
@@ -202,67 +256,34 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
                 lock_ids=lock_ids, ban_ids=ban_ids, no_hits=False,
                 mip_gap=0.005, time_limit=60.0)
             if res.plans:
-                chips[chip] = {
+                solver_chips[chip] = {
                     "best_gw": res.chip_played[1] if res.chip_played else None,
                     "gain": res.objective - baseline.objective,
                 }
         if "freehit" in ds.chips_available:
             print("Chip analysis: freehit (single-GW approximation) ...")
             squad_value = int(ds.squad["sell_price"].sum()) + bank0
+            by_id = matrix.set_index("id")
             best_gw, best_gain = None, 0.0
             for t, g in enumerate(gws):
                 fh = solve_single_gw(pool, g, squad_value, settings,
                                      ban_ids=ban_ids, time_limit=15.0)
                 base_gw_xp = sum(
-                    matrix.set_index("id").loc[p, f"xp_gw{g}"]
-                    for p in baseline.plans[t].lineup) + matrix.set_index(
-                        "id").loc[baseline.plans[t].captain, f"xp_gw{g}"]
-                gain = fh.get("xp", 0) - base_gw_xp
-                if gain > best_gain:
-                    best_gw, best_gain = g, gain
-            chips["freehit"] = {"best_gw": best_gw, "gain": best_gain,
-                                "approx": True}
-        # Chip verdicts (reported judgement, not solver constraints). The gain
-        # answers a narrow question — best spot IF burned inside this horizon —
-        # and can't see future windows, so the default verdict is hold.
-        breaks = gw_breaks(ds, gws)
-        brk = {b["after_gw"]: b for b in breaks}
-        doubles_gws = [g for g in gws if gw_schedule(ds, g)["doubles"]]
-        for cname, info in chips.items():
-            gain, bg = info.get("gain", 0.0), info.get("best_gw")
-            if cname == "wildcard":
-                if gain >= WC_CONSIDER_GAIN:
-                    verdict = "consider"
-                    why = (f"an unusually large gain — the current squad is "
-                           f"leaving a lot on the table this window")
-                else:
-                    verdict = "hold"
-                    why = ("a wildcard always shows a gain on paper (unlimited "
-                           "free transfers help any squad); it earns its burn "
-                           "when the squad needs surgery or at a classic window")
-                    if breaks:
-                        b = breaks[0]
-                        why += (f" — the {b['label']} after GW{b['after_gw']} "
-                                f"is the next one")
-            else:
-                if doubles_gws and gain >= CHIP_CONSIDER_GAIN:
-                    verdict = "consider"
-                    why = (f"GW{doubles_gws[0]} is a double gameweek and the "
-                           f"gain clears the bar")
-                elif doubles_gws:
-                    verdict = "hold"
-                    why = "even with a double in the horizon, the gain is ordinary"
-                else:
-                    verdict = "hold"
-                    why = ("no double gameweek in this horizon — this chip "
-                           "spikes when players play twice; hold for one")
-            if bg and bg - 1 in brk:
-                why += (f". Would land just after the {brk[bg - 1]['label']} — "
-                        f"team news fully settled")
-            elif bg and bg in brk:
-                why += (f". Would land right before the {brk[bg]['label']} — "
-                        f"new picks sit exposed to injuries over the break")
-            info["verdict"], info["why"] = verdict, why
+                    by_id.loc[p, f"xp_gw{g}"]
+                    for p in baseline.plans[t].lineup) + by_id.loc[
+                        baseline.plans[t].captain, f"xp_gw{g}"]
+                gain = float(fh.get("xp", 0) - base_gw_xp)
+                if math.isfinite(gain):
+                    fh_gains[g] = gain
+                    if gain > best_gain:
+                        best_gw, best_gain = g, gain
+            solver_chips["freehit"] = {"best_gw": best_gw, "gain": best_gain,
+                                       "approx": True}
+        # Verdicts: the chip calendar (two of each, one per half), a bar that
+        # slides as each window closes, per-chip triggers and a one-chip-per-
+        # week endgame. Reported judgement, never a solver constraint.
+        chips, chip_plan = _assess_chips(ds, matrix, baseline.plans, solver_chips,
+                                         fh_gains, gws, settings)
 
     # ---- transfer timing ----
     from .api import load_snapshot as _ls
@@ -484,6 +505,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
         "move_decision": move_decision,
         "completed": completed,
         "chips": chips,
+        "chip_plan": chip_plan,
         "timing": timing,
     }
     plan = _jsonify(plan)

@@ -70,7 +70,15 @@ free-transfer ledger, the bank, and FPL's real rules (2-5-5-3 squad, ≤3 per
 club, formations, banking up to 5 FTs, −4 hits, chip weeks). Solving all
 eight weeks at once is what lets it bank a transfer *now* because a double
 gameweek is coming *later*. Chips are evaluated as separate solves — "what
-would a wildcard add this horizon?" — and reported, never auto-played.
+would a wildcard add this horizon?" — and reported, never auto-played. A
+chip-strategy layer then reads the FPL chip calendar (two of each chip, one
+usable in each half; an unused first-half chip is lost at GW19), holds each
+one for a double anywhere in its half, and otherwise lets the bar it must
+clear fall as its window closes — with per-chip triggers (a fully fit 15
+and a bench above its norm for the bench boost, a captain's week unusually
+high for him for the triple captain, a blank or an injury crisis for the
+free hit) and a one-chip-per-week endgame planner once the rest of the
+half is in view.
 
 ### 3. Knowing when not to act
 

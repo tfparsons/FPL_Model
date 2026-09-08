@@ -267,6 +267,9 @@ tr:last-child td { border-bottom: none; }
 .chiptile .crow > span:last-child { display: block; }
 .chiptile .cv { color: var(--ink); font-weight: 600; }
 .chiptile.off { opacity: .55; }
+.chipplan { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; font-size: .85rem; }
+.chipplan.endgame { border-color: var(--warn); }
+.chipplan .note { margin-top: 4px; }
 .pcard { width: 84px; text-align: center; position: relative; }
 .pcard svg { width: 40px; height: 40px; display: block; margin: 0 auto 2px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.3)); }
 .pcard .nm { background: var(--purple); color: #fff; font-size: .7rem; font-weight: 700; padding: 2px 4px;
@@ -1767,45 +1770,91 @@ def build_site() -> None:
                  f"<tr><th>In</th><th>Out</th><th class='num'>Share</th><th></th></tr>"
                  f"{scen_rows}</table></div>") if scen_rows else         "<p class='note'>Robustness check not run.</p>"
 
-    # ---- chips (verdicts + next real opportunity) ----
+    # ---- chips: calendar, runway, verdict and the one-chip-per-week plan ----
     chip_labels = {"wildcard": "Wildcard", "freehit": "Free Hit", "bboost": "Bench Boost", "3xc": "Triple Captain"}
-    fut_breaks = gw_breaks(ds, list(range(ds.next_gw, 38)))
-    fxs = ds.fixtures[ds.fixtures["event"].notna()]
-    pair_counts = pd.concat([
-        fxs[["event", "team_h"]].rename(columns={"team_h": "tid"}),
-        fxs[["event", "team_a"]].rename(columns={"team_a": "tid"})]
-    ).groupby(["event", "tid"]).size()
-    dgws = sorted({int(ev) for (ev, _t), c in pair_counts.items()
-                   if c >= 2 and ev >= ds.next_gw})
-    wc_next = (f"GW{fut_breaks[0]['after_gw'] + 1} — after the {fut_breaks[0]['label']}"
-               if fut_breaks else "—")
-    oth_next = (f"GW{dgws[0]} — double gameweek" if dgws
-                else "TBC — waits for a double gameweek")
-    next_opp = {"wildcard": wc_next, "freehit": oth_next,
-                "bboost": oth_next, "3xc": oth_next}
+    chip_plan = plan.get("chip_plan") or {}
     chip_defs = [("wildcard", "WC", "Wildcard"), ("freehit", "FH", "Free Hit"),
                  ("bboost", "BB", "Bench Boost"), ("3xc", "TC", "Triple Captain")]
+
+    def _chip_condition(c: str, i: dict) -> str:
+        """One-line trigger read-out at the chip's assigned week, else its best week in view."""
+        trig = i.get("triggers") or {}
+        g = i.get("assigned_gw")
+        if g is None:
+            g = i.get("profile_best_gw")
+        t = (trig.get(str(g)) or trig.get(g)) if g is not None else None
+        if not t:
+            return ""
+        ok = lambda flag: "✓" if flag else "✗"
+        if c == "bboost":
+            txt = (f"{ok(t['fit_ok'])} {t['n_fit']}/{t['n_squad']} fit · "
+                   f"{ok(t['bench_ok'])} bench {t['bench_ratio']:.2f}× norm"
+                   + (" · ✓ week after wildcard" if t.get("post_wildcard") else ""))
+        elif c == "3xc":
+            txt = (f"{ok(t['standout'])} {t.get('captain_name', 'captain')} "
+                   f"{t['ratio']:.2f}× his norm"
+                   + (" · ✓ plays twice" if t.get("captain_doubles") else ""))
+        elif c == "freehit":
+            txt = (f"{ok(not t['crisis'])} {t['n_fit']} fit · "
+                   + (f"✓ {t['n_blank']} starters blank" if t.get("blank") else "✗ no blank"))
+        else:
+            return ""
+        return f"GW{int(g)}: {ESC(txt)}"
+
     chip_tiles = ""
     for c, abbr, label in chip_defs:
-        avail = c in meta["chips_available"]
         i = (plan.get("chips") or {}).get(c) or {}
+        avail = c in meta["chips_available"]
         why = (info(ESC(i["why"]) + ".") if i.get("why") else "")
+        verdict = str(i.get("verdict") or ("hold" if avail else "used"))
+        pill_cls = {"play": "good", "expiring": "warn", "consider": "consider"}.get(verdict, "hold")
+        verdict_ = f"<span class='pill {pill_cls}'>{ESC(verdict).upper()}</span>"
         if avail:
-            verdict_ = (f"<span class='pill {ESC(i.get('verdict', 'hold'))}'>"
-                        f"{ESC(i.get('verdict', '—')).upper()}</span>")
-            opp_ = ESC(next_opp.get(c, "—"))
+            g = i.get("assigned_gw")
+            if g is not None:
+                plan_ = f"GW{int(g)}" + (" — this deadline" if int(g) == ds.next_gw else "")
+            elif i.get("dgw_in_runway"):
+                plan_ = f"hold for the GW{int(i['dgw_in_runway'][0])} double"
+            else:
+                plan_ = "hold"
+            rw = i.get("runway")
+            run_ = (f"{int(rw)} GW{'s' if int(rw) != 1 else ''} to GW{int(i['expiry_gw'])}"
+                    if rw is not None else "—")
+            bar_ = f"bar {i['bar']:.1f}" if i.get("bar") is not None else ""
             add_ = (f"+{i['gain']:.1f}{' (approx.)' if i.get('approx') else ''}"
                     if i.get("gain") is not None else "—")
+            cond_ = _chip_condition(c, i)
         else:
-            verdict_, opp_, add_ = "<span class='pill hold'>USED</span>", "—", "—"
+            used_gw = i.get("used_gw")
+            plan_ = f"played GW{int(used_gw)}" if used_gw else "used"
+            nw = i.get("next_window")
+            run_ = f"next unlocks GW{int(nw[0])}" if nw else "—"
+            bar_, add_, cond_ = "", "—", ""
         chip_tiles += (
             f"<div class='chiptile{'' if avail else ' off'}'>"
             f"<span class='cb'>{abbr}</span>"
             f"<div class='cname'>{label} {why}</div>"
             f"<div class='crow'><span>Verdict</span><span>{verdict_}</span></div>"
-            f"<div class='crow'><span>Next opportunity</span><span class='cv'>{opp_}</span></div>"
-            f"<div class='crow'><span>Would add</span><span class='cv'>{add_}</span></div>"
-            f"</div>")
+            f"<div class='crow'><span>Plan</span><span class='cv'>{ESC(plan_)}</span></div>"
+            f"<div class='crow'><span>Runway</span><span class='cv'>{ESC(run_)}</span></div>"
+            f"<div class='crow'><span>Would add</span><span class='cv'>{ESC(add_)}"
+            f"{(' · ' + ESC(bar_)) if bar_ else ''}</span></div>"
+            + (f"<div class='crow'><span>Conditions</span><span>{cond_}</span></div>" if cond_ else "")
+            + "</div>")
+    chip_strip = ""
+    if chip_plan.get("order"):
+        seq = " · ".join(f"GW{int(r['gw'])} {chip_labels.get(r['chip'], r['chip'])}"
+                         for r in chip_plan["order"])
+        lost = chip_plan.get("unassigned") or []
+        head = "Endgame — one chip per week" if chip_plan.get("endgame") else "Chip plan"
+        chip_strip = (
+            f"<div class='chipplan{' endgame' if chip_plan.get('endgame') else ''}'>"
+            f"<b>{head}:</b> {ESC(seq)}"
+            + (f" · <span style='color:var(--bad)'>would lapse: "
+               f"{ESC(', '.join(chip_labels.get(x, x) for x in lost))}</span>" if lost else "")
+            + f"<div class='note'>{ESC(chip_plan.get('note', ''))}</div></div>")
+    elif chip_plan.get("note"):
+        chip_strip = f"<div class='chipplan'><div class='note'>{ESC(chip_plan['note'])}</div></div>"
 
     # ---- banners ----
     banners = ""
@@ -1920,10 +1969,13 @@ def build_site() -> None:
     "Orange = evidence adjustment (club move, new arrival, return from injury, injury-hit last season). Purple = squad competition adjustment (covering for an absent teammate, or squeezed by a returner). Applies to xP and expected minutes — hover for details.")}</h2>
   <div class="pitch">{pitch}<div class="bench">{bench}</div></div></div>
 <div class="card"><h2>Chips {info(
-    "The verdict is the model's judgement. 'Would add' answers one narrow question: expected points a chip "
-    "would add if used inside this 8-gameweek window (future weeks discounted ~15% per week). It cannot see "
-    "beyond the window — future double gameweeks aren't scheduled yet — so holding keeps every option open.")}</h2>
-  <div class="chipgrid">{chip_tiles}</div></div>
+    "Two of every chip, one usable in each half of the season; an unused first-half chip is lost at GW19. "
+    "Runway = weeks left before it lapses. 'Would add' is the expected points a chip adds if used inside this "
+    "8-gameweek window; the bar it must clear slides down to zero as its runway closes, counting the other "
+    "chips that still need a week of their own (one chip per gameweek). A double gameweek anywhere in the "
+    "half is held for. PLAY = this deadline; CONSIDER = a later week in view; EXPIRING = its slot in the "
+    "endgame plan; the tooltip on each chip gives the reasoning.")}</h2>
+  {chip_strip}<div class="chipgrid">{chip_tiles}</div></div>
 <div class="card"><h2>This week's call</h2>{headline}
   <div class="timing">{wk_block}</div>
   {timing_html}

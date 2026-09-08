@@ -34,3 +34,20 @@ pool:                 # players carried into the solver, per position, by xP
   MID: 55
   FWD: 30
 robustness_max_runs: 100   # ceiling when conviction is ambiguous / final-window
+
+# Chip strategy (see chips.py). Two of every chip, one per half; an unused
+# first-half chip is lost at GW19, so the bar each must clear slides down as
+# its window closes and one chip is played per gameweek at the end.
+chips:
+  bar_start:            # xP gain a chip must show while there is plenty of runway
+    3xc: 8.0
+    bboost: 8.0
+    freehit: 12.0       # highest: the free hit keeps its contingency value longest
+    wildcard: 20.0
+  ramp: 8               # pressure-runway GWs over which the bar slides to zero
+  tc_standout_ratio: 1.25   # captain's week vs his own typical week
+  bb_min_fit: 15        # squad members that must be fit for a comfortable bench boost
+  bb_bench_ratio: 1.15  # bench xP vs its own norm across the horizon
+  fit_avail: 0.75       # avail at or above this counts as fit
+  fh_crisis_fit: 11     # fewer fit players than this = injury crisis
+  fh_blank_players: 4   # this many of the 15 blanking = free-hit territory

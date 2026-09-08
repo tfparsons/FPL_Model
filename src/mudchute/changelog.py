@@ -10,10 +10,31 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.9"
+MODEL_VERSION = "1.10"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.10",
+        "date": "8 Sep 2026",
+        "title": "Chips: two per half, a sliding bar, one per week",
+        "detail": "The chip calendar is read from the FPL data (two of each "
+                  "chip, one usable in each half), so the model knows a "
+                  "first-half chip lapses at GW19. The bar each chip must "
+                  "clear falls as its window closes, counting the other chips "
+                  "that still need a week of their own. Each has its own "
+                  "trigger: bench boost wants a fully fit 15 and a bench above "
+                  "its norm (or the week after a wildcard); triple captain "
+                  "wants the captain's week unusually high for him, or a "
+                  "double; free hit wants a blank or an injury crisis and "
+                  "otherwise keeps longest. Once the rest of the half is in "
+                  "view, an endgame planner gives each remaining chip a "
+                  "distinct week, which also settles who gets a double.",
+        "impact": "Previously every non-wildcard chip was held for a double "
+                  "gameweek the model could not see coming, so first-half "
+                  "chips were on course to expire unused. Now they are "
+                  "deployed in their best remaining weeks instead.",
+    },
     {
         "version": "1.9",
         "date": "4 Sep 2026",

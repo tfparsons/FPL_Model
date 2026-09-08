@@ -1,4 +1,4 @@
-# Real Mudchute — FPL transfer optimiser
+# FPL Model — FPL transfer optimiser
 # The three commands that matter:
 #   make update   — refresh all data from the FPL API (and historical data on first run)
 #   make solve    — run the xP engine + solver + robustness check

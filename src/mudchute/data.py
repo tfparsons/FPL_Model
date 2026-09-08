@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
 from .api import load_snapshot
+from .chips import CHIPS, chip_calendar, chip_windows
 from .config import CONFIG, HISTORY, POSITIONS
 
 
@@ -46,6 +47,8 @@ class Dataset:
     chips_available: list[str]
     picks_gw: int
     fetched_at: str
+    chips_played: list = field(default_factory=list)   # [{name, event}] actually played
+    chip_windows: dict = field(default_factory=dict)   # {chip: [(first_gw, last_gw), ...]}
 
 
 def _selling_prices(squad_ids: list[int], transfers: list[dict],
@@ -142,12 +145,18 @@ def load_dataset() -> Dataset:
         lambda i: pick_meta.get(i, {}).get("position", 99))
     squad = squad.sort_values("position_order")
 
-    used = {c["name"] for c in snap["entry"].get("chips_played", [])}
-    # entry history also lists chips
-    for c in snap.get("entry_history", {}).get("chips", []):
-        used.add(c["name"])
-    all_chips = ["wildcard", "freehit", "bboost", "3xc"]
-    chips_available = [c for c in all_chips if c not in used]
+    # Chips come two per season, one usable in each half, and the first-half
+    # one lapses unused at the half-way line. Which instance governs the next
+    # deadline, and whether it is spent, comes from the GW each chip was
+    # actually played in (both endpoints list them; union by name and GW).
+    played_raw = (list(snap.get("entry_history", {}).get("chips", []) or [])
+                  + list(snap["entry"].get("chips_played", []) or []))
+    played = sorted({(str(c.get("name")), int(c["event"]))
+                     for c in played_raw if c.get("event") is not None})
+    chips_played = [{"name": n, "event": e} for n, e in played]
+    windows = chip_windows(boot, int(events["id"].max()))
+    calendar = chip_calendar(windows, chips_played, next_gw)
+    chips_available = [c for c in CHIPS if calendar[c].available]
 
     bank = bank_units / 10.0
     all_chips = snap.get("entry_history", {}).get("chips", []) or [
@@ -167,6 +176,7 @@ def load_dataset() -> Dataset:
         next_gw=next_gw,
         chips_available=chips_available, picks_gw=picks["_gw"],
         fetched_at=snap["meta"]["fetched_at"],
+        chips_played=chips_played, chip_windows=windows,
     )
 
 
