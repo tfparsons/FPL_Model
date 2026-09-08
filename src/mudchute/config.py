@@ -45,6 +45,7 @@ class Settings:
     ft_end_values: list[float] = field(default_factory=lambda: [1.5, 1.0, 0.6])
     churn_penalty: float = 0.05
     move_threshold: float = 1.0
+    chips: dict[str, Any] = field(default_factory=dict)  # chip-strategy levers (chips.py)
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -72,4 +73,5 @@ def load_settings() -> Settings:
         ft_end_values=[float(v) for v in s.get("ft_end_values", [1.5, 1.0, 0.6])],
         churn_penalty=float(s.get("churn_penalty", 0.05)),
         move_threshold=float(s.get("move_threshold", 1.0)),
+        chips=dict(s.get("chips") or {}),
     )
