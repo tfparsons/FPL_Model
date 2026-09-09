@@ -10,10 +10,27 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.10"
+MODEL_VERSION = "1.11"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.11",
+        "date": "9 Sep 2026",
+        "title": "Chips: 'would add' in each chip's own units; the wildcard over five weeks",
+        "detail": "The wildcard is judged on what the rebuilt squad adds over "
+                  "its next five gameweeks from the week it is played, week by "
+                  "week and undiscounted, against a 15-point bar; the one-week "
+                  "chips report their best week's own points (the bench's, net "
+                  "of the autosub credit; one more captain multiple; the "
+                  "one-week re-pick) instead of the separate chip solves' "
+                  "discounted deltas, which sit inside the solver's 0.5% "
+                  "tolerance. The solver numbers are kept as solver_gain.",
+        "impact": "The wildcard reads as the medium-term decision it is, with "
+                  "its window on the tile; the bench boost and triple captain "
+                  "no longer show a +5 and +1.5 beside a bench worth 12 and a "
+                  "captain worth 8.",
+    },
     {
         "version": "1.10",
         "date": "8 Sep 2026",

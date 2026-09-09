@@ -78,7 +78,9 @@ clear fall as its window closes — with per-chip triggers (a fully fit 15
 and a bench above its norm for the bench boost, a captain's week unusually
 high for him for the triple captain, a blank or an injury crisis for the
 free hit) and a one-chip-per-week endgame planner once the rest of the
-half is in view.
+half is in view. The wildcard is judged on what its rebuilt squad adds
+over the next five gameweeks, undiscounted; the one-week chips on their
+best week's own points.
 
 ### 3. Knowing when not to act
 

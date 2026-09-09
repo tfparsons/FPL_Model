@@ -68,7 +68,7 @@ def _price_signal(player_row: pd.Series) -> dict:
 
 def _assess_chips(ds: Dataset, matrix: pd.DataFrame, plans: list,
                   solver_chips: dict, fh_gains: dict[int, float], gws: list[int],
-                  settings: Settings) -> tuple[dict, dict]:
+                  settings: Settings, wc_plans: list | None = None) -> tuple[dict, dict]:
     """Feed the chip strategy (chips.py) from the dataset, the xP matrix and
     the baseline plan; returns (per-chip verdicts, the one-chip-per-week plan)."""
     from .chips import assess, chip_calendar, config as chip_config, value_profiles
@@ -85,7 +85,10 @@ def _assess_chips(ds: Dataset, matrix: pd.DataFrame, plans: list,
         v = by_id.at[pid, col]
         return float(v) if pd.notna(v) else 0.0
 
-    profiles = value_profiles(plans, xp_at, fh_gains)
+    profiles = value_profiles(
+        plans, xp_at, fh_gains,
+        bench_weights=(settings.bench_gk_weight, settings.bench_outfield_weights),
+        wc_plans=wc_plans)
     team_of = {int(k): str(v) for k, v in by_id["team_short"].items()}
     names = {int(k): str(v) for k, v in by_id["web_name"].items()}
     # Fitness is a today measure (avail / p_start / xmins are per player, not
@@ -244,6 +247,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
     chip_plan: dict = {}
     solver_chips: dict = {}
     fh_gains: dict[int, float] = {}
+    wc_plans: list | None = None
     if not skip_chips:
         # What each chip is worth if burned somewhere in this horizon with the
         # transfers re-optimised around it: one extra solve per chip.
@@ -260,6 +264,8 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
                     "best_gw": res.chip_played[1] if res.chip_played else None,
                     "gain": res.objective - baseline.objective,
                 }
+                if chip == "wildcard":
+                    wc_plans = res.plans      # the rebuilt path, judged GW by GW
         if "freehit" in ds.chips_available:
             print("Chip analysis: freehit (single-GW approximation) ...")
             squad_value = int(ds.squad["sell_price"].sum()) + bank0
@@ -283,7 +289,7 @@ def run_solve(skip_chips: bool = False, skip_robustness: bool = False) -> None:
         # slides as each window closes, per-chip triggers and a one-chip-per-
         # week endgame. Reported judgement, never a solver constraint.
         chips, chip_plan = _assess_chips(ds, matrix, baseline.plans, solver_chips,
-                                         fh_gains, gws, settings)
+                                         fh_gains, gws, settings, wc_plans=wc_plans)
 
     # ---- transfer timing ----
     from .api import load_snapshot as _ls
