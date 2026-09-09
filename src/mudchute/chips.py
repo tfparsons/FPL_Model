@@ -40,7 +40,8 @@ LABELS = {"wildcard": "Wildcard", "freehit": "Free Hit",
 
 DEFAULTS: dict[str, Any] = {
     # xP gain a chip must show while there is plenty of runway
-    "bar_start": {"3xc": 8.0, "bboost": 8.0, "freehit": 12.0, "wildcard": 20.0},
+    "bar_start": {"3xc": 8.0, "bboost": 8.0, "freehit": 12.0, "wildcard": 15.0},
+    "wc_window": 5,             # GWs over which a wildcard's rebuilt squad is judged
     "ramp": 8,                  # pressure-runway GWs over which the bar slides to zero
     "tc_standout_ratio": 1.25,  # captain's week vs his own typical week
     "bb_min_fit": 15,           # squad members that must be fit for a comfortable BB
@@ -145,21 +146,44 @@ def _get(plan: Any, key: str, default: Any = None) -> Any:
     return getattr(plan, key, default)
 
 
-def value_profiles(plans: list, xp_at: Callable[[int, int], float],
-                   fh_gains: dict[int, float]) -> dict[str, dict[int, float]]:
-    """What each chip literally adds in each horizon GW on the current plan.
+def plan_gw_xp(plan: Any, g: int, xp_at: Callable[[int, int], float]) -> float:
+    """A plan's expected points in one GW: the eleven, plus the captain again."""
+    return float(sum(xp_at(p, g) for p in (_get(plan, "lineup") or []))
+                 + xp_at(_get(plan, "captain"), g))
 
-    3xc: one more multiple of the captain's xP. bboost: the four bench xPs.
-    freehit: the solver's single-GW re-pick gain. (The wildcard has no per-GW
-    profile; the solver's own number is used for it.)
+
+def value_profiles(plans: list, xp_at: Callable[[int, int], float],
+                   fh_gains: dict[int, float],
+                   bench_weights: tuple[float, list[float]] | None = None,
+                   wc_plans: list | None = None) -> dict[str, dict[int, float]]:
+    """What each chip literally adds in each horizon GW, undiscounted.
+
+    3xc: one more multiple of the captain's xP. bboost: the bench's xP, net of
+    the share the objective already credits for autosubs when bench_weights
+    (gk, [outfield 1-3]) are given. freehit: the solver's single-GW re-pick
+    gain. wildcard: the rebuilt squad's extra points over the current plan,
+    GW by GW, when the wildcard solve's plans are given.
     """
     prof: dict[str, dict[int, float]] = {"3xc": {}, "bboost": {}, "freehit": {}}
     for p in plans:
         g = int(_get(p, "gw"))
         prof["3xc"][g] = float(xp_at(_get(p, "captain"), g))
-        prof["bboost"][g] = float(sum(xp_at(b, g) for b in _get(p, "bench")))
+        bench = list(_get(p, "bench") or [])
+        if bench_weights:
+            gk_w, out_w = bench_weights
+            ws = [gk_w] + [out_w[i] if i < len(out_w) else 0.0 for i in range(len(bench) - 1)]
+            prof["bboost"][g] = float(sum(xp_at(b, g) * (1 - w) for b, w in zip(bench, ws)))
+        else:
+            prof["bboost"][g] = float(sum(xp_at(b, g) for b in bench))
         if g in fh_gains:
             prof["freehit"][g] = float(fh_gains[g])
+    if wc_plans:
+        base = {int(_get(p, "gw")): p for p in plans}
+        prof["wildcard"] = {}
+        for wp in wc_plans:
+            g = int(_get(wp, "gw"))
+            if g in base:
+                prof["wildcard"][g] = plan_gw_xp(wp, g, xp_at) - plan_gw_xp(base[g], g, xp_at)
     return prof
 
 
@@ -259,6 +283,13 @@ def _fmt_gws(gws: list[int]) -> str:
     return ", ".join(f"GW{g}" for g in gws)
 
 
+def _fmt_span(gws: list) -> str:
+    gws = [int(g) for g in gws if g is not None]
+    if not gws:
+        return ""
+    return f"GW{gws[0]}" if len(gws) == 1 else f"GW{gws[0]}–{gws[-1]}"
+
+
 def assess(calendar: dict[str, ChipState], profiles: dict[str, dict[int, float]],
            solver: dict[str, dict], plans: list, xp_at: Callable[[int, int], float],
            team_of: dict[int, str], squad_fit: dict, schedule: dict[int, dict],
@@ -314,17 +345,32 @@ def assess(calendar: dict[str, ChipState], profiles: dict[str, dict[int, float]]
         prof = dict(profiles.get(c, {}))
         triggers: dict[int, dict] = {}
         elig: dict[int, float] = {}
+        extra: dict = {}
 
         if c == "wildcard":
-            # No per-GW profile: the solver's own best spot is the one candidate
-            # before the endgame; inside it, any remaining week keeps it alive.
-            gain = float(sol.get("gain") or 0.0)
+            # A wildcard is a medium-term call: it is judged on what the rebuilt
+            # squad adds over its next `wc_window` weeks from the week it is
+            # played (the solver's spot), undiscounted. Without the rebuilt
+            # plans, the solver's horizon-wide number stands in.
+            solver_gain = float(sol.get("gain") or 0.0)
             bg = sol.get("best_gw")
+            window = max(int(cfg["wc_window"]), 1)
+            if prof:
+                start = (bg if bg in visible else
+                         next((g for g in visible if prof.get(g, 0.0) > 0), None))
+                win_gws = [g for g in visible if g >= start][:window] if start is not None else []
+                value = sum(prof.get(g, 0.0) for g in win_gws)
+                horizon_gain = sum(prof.get(g, 0.0) for g in visible)
+            else:
+                start = bg
+                win_gws = [int(bg)] if bg is not None else []
+                value = horizon_gain = solver_gain
             if endgame:
-                elig = {g: max(gain, 0.0) for g in visible}
-            elif bg is not None and gain >= b:
-                elig = {int(bg): gain}
-            prof = {int(bg): gain} if bg is not None else {}
+                elig = {g: max(value, 0.0) for g in visible}
+            elif start is not None and value >= b:
+                elig = {int(start): value}
+            extra = {"gain": round(value, 2), "gain_gw": start, "gain_window": win_gws,
+                     "horizon_gain": round(horizon_gain, 2), "window_len": window}
         else:
             for g in visible:
                 p = by_gw.get(g)
@@ -364,7 +410,8 @@ def assess(calendar: dict[str, ChipState], profiles: dict[str, dict[int, float]]
         out[c] = {
             **base, "pressure_runway": pr, "bar": round(b, 2),
             "bar_start": float(cfg["bar_start"][c]), "endgame": endgame,
-            "best_gw": sol.get("best_gw", best_prof_gw), "gain": sol.get("gain"),
+            "best_gw": sol.get("best_gw", best_prof_gw),
+            "solver_gain": sol.get("gain"), "gain": None, "gain_gw": None, **extra,
             **({"approx": True} if sol.get("approx") else {}),
             "profile": {int(g): round(v, 2) for g, v in prof.items()},
             "profile_best_gw": best_prof_gw,
@@ -382,6 +429,10 @@ def assess(calendar: dict[str, ChipState], profiles: dict[str, dict[int, float]]
         g = chosen.get(c)
         info["assigned_gw"] = g
         t = info["triggers"].get(g) if g is not None else None
+        if c != "wildcard":
+            gg = g if g is not None else info.get("profile_best_gw")
+            info["gain_gw"] = gg
+            info["gain"] = info["profile"].get(gg) if gg is not None else None
         why: list[str] = []
         if g is not None:
             info["verdict"] = ("play" if g == next_gw else
@@ -402,7 +453,8 @@ def assess(calendar: dict[str, ChipState], profiles: dict[str, dict[int, float]]
                 else:
                     why.append(f"a one-week re-pick adds {info['profile'].get(g, 0):.1f} in GW{g}")
             elif c == "wildcard":
-                why.append(f"the solver's rebuild is worth +{info['gain'] or 0:.1f} from GW{g}")
+                why.append(f"the rebuilt squad adds +{info['gain'] or 0:.1f} over "
+                           f"{_fmt_span(info.get('gain_window') or [g])}")
             if info["endgame"]:
                 why.append(f"must be played by GW{st.expiry_gw} or it is lost; "
                            f"this is its slot in the one-chip-per-week plan")
@@ -441,6 +493,10 @@ def assess(calendar: dict[str, ChipState], profiles: dict[str, dict[int, float]]
                     why.append("a wildcard always shows a gain on paper; it earns "
                                "its burn when the squad needs surgery or at a "
                                "classic window")
+                    if info.get("gain") is not None:
+                        span = _fmt_span(info.get("gain_window") or [info.get("gain_gw")])
+                        why.append(f"+{info['gain']:.1f}{(' over ' + span) if span else ''} "
+                                   f"against a {info['bar']:.1f} bar")
                     if breaks:
                         why.append(f"the {breaks[0]['label']} after "
                                    f"GW{breaks[0]['after_gw']} is the next one")

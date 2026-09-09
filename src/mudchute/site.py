@@ -1821,7 +1821,13 @@ def build_site() -> None:
             run_ = (f"{int(rw)} GW{'s' if int(rw) != 1 else ''} to GW{int(i['expiry_gw'])}"
                     if rw is not None else "—")
             bar_ = f"bar {i['bar']:.1f}" if i.get("bar") is not None else ""
-            add_ = (f"+{i['gain']:.1f}{' (approx.)' if i.get('approx') else ''}"
+            span = ""
+            if i.get("gain_window"):
+                w = [int(x) for x in i["gain_window"]]
+                span = f" over GW{w[0]}–{w[-1]}" if len(w) > 1 else f" in GW{w[0]}"
+            elif i.get("gain_gw") is not None:
+                span = f" in GW{int(i['gain_gw'])}"
+            add_ = (f"+{i['gain']:.1f}{span}{' (approx.)' if i.get('approx') else ''}"
                     if i.get("gain") is not None else "—")
             cond_ = _chip_condition(c, i)
         else:
@@ -1970,8 +1976,11 @@ def build_site() -> None:
   <div class="pitch">{pitch}<div class="bench">{bench}</div></div></div>
 <div class="card"><h2>Chips {info(
     "Two of every chip, one usable in each half of the season; an unused first-half chip is lost at GW19. "
-    "Runway = weeks left before it lapses. 'Would add' is the expected points a chip adds if used inside this "
-    "8-gameweek window; the bar it must clear slides down to zero as its runway closes, counting the other "
+    "Runway = weeks left before it lapses. 'Would add' is in each chip's own units, undiscounted: the bench's "
+    "points that week for the bench boost (net of the autosub credit), one more multiple of the captain's for the "
+    "triple captain, the one-week re-pick gain for the free hit, and for the wildcard what the rebuilt squad adds "
+    "over its next five gameweeks from the week it is played. The bar each must clear is in the same units and "
+    "slides down to zero as its runway closes, counting the other "
     "chips that still need a week of their own (one chip per gameweek). A double gameweek anywhere in the "
     "half is held for. PLAY = this deadline; CONSIDER = a later week in view; EXPIRING = its slot in the "
     "endgame plan; the tooltip on each chip gives the reasoning.")}</h2>

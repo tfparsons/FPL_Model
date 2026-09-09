@@ -103,6 +103,24 @@ def test_value_profiles_are_what_each_chip_literally_adds():
     assert prof["freehit"] == {4: 3.0}
 
 
+def test_bench_boost_profile_is_net_of_the_autosub_credit():
+    plans = [{"gw": 4, "captain": 1, "bench": [10, 11, 12, 13], "squad": []}]
+    xp = {(b, 4): 2.0 for b in (10, 11, 12, 13)}
+    prof = value_profiles(plans, lambda p, g: xp.get((p, g), 0.0), {},
+                          bench_weights=(0.5, [0.5, 0.5, 0.5]))
+    assert prof["bboost"] == {4: 4.0}                # half of the raw 8
+
+
+def test_wildcard_profile_is_the_rebuilt_squads_extra_points_week_by_week():
+    base = [{"gw": g, "captain": 1, "bench": [], "squad": [], "lineup": [1, 2, 3]} for g in (4, 5, 6)]
+    wc = [{"gw": g, "captain": 1, "bench": [], "squad": [], "lineup": [1, 2, 9]} for g in (4, 5, 6)]
+    xp = {**{(1, g): 6.0 for g in (4, 5, 6)}, **{(2, g): 3.0 for g in (4, 5, 6)},
+          **{(3, g): 2.0 for g in (4, 5, 6)}, **{(9, g): 5.0 for g in (4, 5, 6)}}
+    prof = value_profiles(base, lambda p, g: xp.get((p, g), 0.0), {}, wc_plans=wc)
+    assert prof["wildcard"] == {4: 3.0, 5: 3.0, 6: 3.0}   # 9 (5.0) replaces 3 (2.0)
+    assert "wildcard" not in value_profiles(base, lambda p, g: 0.0, {})
+
+
 def test_bench_boost_wants_a_fit_15_and_a_bench_above_its_norm():
     cfg = config()
     prof = {4: 4.0, 5: 4.0, 6: 6.0, 7: 4.0}          # norm 4.5; GW6 = 1.33x
@@ -155,7 +173,7 @@ def test_assign_prefers_more_chips_placed_then_a_later_free_hit():
 
 def _world(next_gw, horizon=8, captain=1, cap_team="MCI", bench=(10, 11, 12, 13),
            squad=None, xp=None, fh=None, doubles=None, blanks=None, n_fit=15,
-           played=(), solver=None, doubtful=()):
+           played=(), solver=None, doubtful=(), wc_profile=None):
     gws = list(range(next_gw, next_gw + horizon))
     squad = squad or [captain, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15] + list(bench)
     lineup = [p for p in squad if p not in bench]
@@ -172,6 +190,8 @@ def _world(next_gw, horizon=8, captain=1, cap_team="MCI", bench=(10, 11, 12, 13)
     team_of = {p: "OTH" for p in squad}
     team_of[captain] = cap_team
     prof = value_profiles(plans, xp_at, fh)
+    if wc_profile:
+        prof["wildcard"] = dict(wc_profile)
     return assess(cal, prof, solver or {}, plans, xp_at, team_of,
                   {"n_fit": n_fit, "n_squad": 15, "doubtful": list(doubtful)},
                   sched, gws, next_gw, names={captain: "Haaland"},
@@ -286,3 +306,39 @@ def test_second_half_instance_is_fresh_even_after_a_first_half_burn():
     assert chips["3xc"]["available"] and chips["3xc"]["window"] == [20, 38]
     assert chips["3xc"]["half"] == 2 and chips["3xc"]["runway"] == 17
     assert chips["3xc"]["verdict"] == "hold"
+
+
+
+def test_wildcard_is_judged_over_its_window_not_one_week():
+    # a rebuild worth 3.5 a week from GW5 is 17.5 over its next five: clears the 15 bar
+    wcp = {g: 3.5 for g in range(5, 12)}
+    chips, plan = _world(4, solver={"wildcard": {"best_gw": 5, "gain": 9.0}}, wc_profile=wcp)
+    w = chips["wildcard"]
+    assert w["gain_window"] == [5, 6, 7, 8, 9] and w["gain"] == 17.5 and w["gain_gw"] == 5
+    assert w["solver_gain"] == 9.0 and w["horizon_gain"] == 24.5 and w["bar"] == 15.0
+    assert w["verdict"] == "consider" and w["assigned_gw"] == 5
+    assert "over GW5–9" in w["why"]
+    assert plan["order"] == [{"chip": "wildcard", "gw": 5, "value": 17.5}]
+    # a thin rebuild (1.5 a week, 7.5 over five) holds, and the reason quotes the window
+    chips, _ = _world(4, solver={"wildcard": {"best_gw": 5, "gain": 9.0}},
+                      wc_profile={g: 1.5 for g in range(5, 12)})
+    assert chips["wildcard"]["verdict"] == "hold" and chips["wildcard"]["gain"] == 7.5
+    assert "+7.5 over GW5–9 against a 15.0 bar" in chips["wildcard"]["why"]
+
+
+def test_without_rebuilt_plans_the_wildcard_falls_back_to_the_solver_number():
+    chips, _ = _world(4, solver={"wildcard": {"best_gw": 6, "gain": 12.0}})
+    w = chips["wildcard"]
+    assert w["gain"] == 12.0 and w["gain_window"] == [6] and w["solver_gain"] == 12.0
+    assert w["verdict"] == "hold"
+
+
+def test_one_week_chips_report_their_best_weeks_own_points_not_the_solver_delta():
+    xp = {(1, 6): 9.0}
+    chips, _ = _world(4, xp=xp, solver={"3xc": {"best_gw": 4, "gain": 1.5},
+                                         "bboost": {"best_gw": 4, "gain": 5.1}})
+    assert chips["3xc"]["gain"] == 9.0 and chips["3xc"]["gain_gw"] == 6
+    assert chips["3xc"]["solver_gain"] == 1.5
+    assert chips["bboost"]["gain_gw"] == chips["bboost"]["profile_best_gw"]
+    assert chips["bboost"]["gain"] == chips["bboost"]["profile"][chips["bboost"]["gain_gw"]]
+    assert chips["bboost"]["solver_gain"] == 5.1
