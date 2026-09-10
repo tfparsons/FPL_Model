@@ -20,7 +20,12 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A full solve is ~22 min when the robustness check escalates to 100
+    # re-solves (the final-window rule near a deadline); run 102 hit the old
+    # 30-min wall mid-solve. Scheduled runs bail at the `due` step in ~1 min.
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"     # solver progress reaches the log as it happens
     steps:
       - uses: actions/checkout@v4
 
