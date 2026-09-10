@@ -10,10 +10,36 @@ changes rather than data, and measure each version's impact once gameweeks
 settle.
 """
 
-MODEL_VERSION = "1.11"
+MODEL_VERSION = "1.12"
 
 # Newest first. "impact" = what the change was expected to do.
 CHANGELOG = [
+    {
+        "version": "1.12",
+        "date": "10 Sep 2026",
+        "title": "Minutes: last season's prior fades; minutes per start learn in-season",
+        "detail": "The weight on last season's start-rate prior used to be "
+                  "frozen by the six-game window (n was capped at the window "
+                  "length), so a player who was a backup last season kept a "
+                  "fifth of that prior all year however often he started. Now "
+                  "the club's season game count sets the confidence while the "
+                  "rate itself stays 70/30 window/season, so the prior fades "
+                  "and recency still rules. Minutes per start, previously "
+                  "last season's number only, now blend the recency window's "
+                  "starts (decay-weighted) with last season's pattern, last "
+                  "season counting as five starts. A sole-striker rule "
+                  "(lift the only recognised forward when nobody else is "
+                  "starting up top) was backtested alongside and binned: the "
+                  "model was already calibrated for those forwards.",
+        "impact": "2025-26 backtest: start-probability Brier better in every "
+                  "phase of the season (0.0934 -> 0.0922 overall) and not "
+                  "worse after a rival starter emerges; minutes-per-start "
+                  "error 9.2 -> 8.0 min, and 12.2 -> 11.3 where last season "
+                  "and this season disagree. Backup-prior strikers who are "
+                  "now starting read 88% by GW10 instead of 83%. Nothing "
+                  "moves until a player has ~7 games this season, so this is "
+                  "a January fix, not a GW4 one.",
+    },
     {
         "version": "1.11",
         "date": "9 Sep 2026",

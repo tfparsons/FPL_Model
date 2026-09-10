@@ -58,3 +58,58 @@ On the 2,247 cases where the two disagree by more than 0.3, season-to-date
 scores 0.282 and the window 0.190 — a third less error exactly where it
 matters (benchings, injuries, role changes). The model uses the 70/30 blend
 as its evidence term (v1.7).
+
+## Minutes model: prior fade, in-season minutes per start, and a binned sole-striker rule (2025-26 game logs, 10 Sep 2026)
+
+Three candidate changes were replayed over every player-fixture of 2025-26
+(27,154 player-games, 2024-25 as the prior) with the live model's formulas,
+before any code changed. Two were adopted (v1.12), one was binned.
+
+**1. Sole-striker rule — binned.** The idea: when a club fields exactly one
+recognised forward and his recent minutes share is ≥ 70%, lift P(start) to
+his window rate. It fired for only 7 forwards (68 player-games; five clubs
+ran a lone striker for any stretch). Where it fired the model was already
+calibrated — those forwards started 90% and the model said 90% — and the
+rule pushed them to 95%, slightly worse (Brier 0.0919 → 0.0935). The Barry-
+type case existed (Igor Thiago, new to Brentford, lone striker all season):
+the model had him at 88% by GW4 and 93% by GW7 on its own; he started 28 of
+29. The false-9 risk was real but rare (4 of 344 lifts: a lone striker on
+the bench with nobody up top); the other 18 misses were absences the live
+availability flag would catch. The stage-2 minutes check did its job,
+blocking 20 cases that started only half the time (Gyökeres' GW12–16 slump,
+Ekitiké once Isak returned). Its only real gains were new number-one
+keepers with a backup prior, which the prior fade below recovers anyway.
+
+**2. Prior fade — adopted.** The confidence in this season's evidence now
+grows with the club's game count (n) instead of being capped at the
+six-game window (n ≤ 3.7 decayed games, which left the prior a fifth of
+the say all season); the rate itself stays 70/30 window/season.
+
+| Slice | Brier before | after |
+|---|---|---|
+| All player-games | 0.0934 | 0.0922 |
+| GW ≤ 10 | 0.0955 | 0.0951 |
+| GW 11–25 | 0.0943 | 0.0933 |
+| GW 26–38 | 0.0913 | 0.0896 |
+| Incumbent GK/FWD, 6 games after a rival starter emerges | 0.2839 | 0.2808 |
+| Backup-prior strikers now starting (window ≥ 80%), GW10+: mean P(start) vs actual 0.88 | 0.83 | 0.87 |
+
+Not worse anywhere, including the recency-sensitive shock slice. Caveat
+from that slice: after a rival starter emerges the model still gives the
+displaced incumbent ~0.60 when he starts 0.35 — it is slow to drop players.
+Neither version fixes that; it is the next thing to look at.
+
+**3. Minutes per start from this season — adopted with shrinkage.** Last
+season only (the old model) vs the recency window's starts vs a blend where
+last season counts as k starts, MAE in minutes on 7,205 starts:
+
+| Predictor | All starts | Last season and window disagree by > 12 min (n=448) |
+|---|---|---|
+| Last season only (old) | 9.2 | 12.2 |
+| Window only | 7.3 | 15.2 |
+| Blend, k = 3 | 7.7 | 11.6 |
+| Blend, k = 5 (adopted) | 8.0 | 11.3 |
+
+The window alone is best overall but worst when it disagrees with last
+season, because that is usually one to three starts of data (median 3).
+k = 5 beats the old model in both slices.

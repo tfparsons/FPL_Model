@@ -4,8 +4,12 @@ The highest-value component of the xP engine. Core ideas:
 - Availability from status flags is a multiplier, never a hard filter.
 - Start probability blends current-season starts (strong early signal of the
   post-transfer-window pecking order) with last season's late-season start rate.
+  The evidence is weighted toward the last six games; the prior's weight
+  fades with the number of games the club has played this season.
 - New signings with no PL history get a price-based prior that evidence
   quickly overrides.
+- Minutes per start blend this season's recent starts with last season's
+  pattern, the window earning weight one start at a time.
 """
 
 from __future__ import annotations
@@ -24,6 +28,10 @@ RETURN_MINS_SCALE = 0.85
 RELIABLE_MINS = 1500.0   # last-season minutes for the prior to count in full;
                          # below it the prior leans on price and evidence weighs more
 DEFAULT_MINS_PER_START = 78.0
+MPS_PRIOR_STARTS = 5.0   # last season's minutes-per-start counts as this many
+                         # starts against the recency window's own starts
+                         # (2025-26 backtest: MAE 9.2 -> 8.0 min per start, and
+                         # 12.2 -> 11.3 where the two disagree; VALIDATION.md)
 DEFAULT_P60_GIVEN_START = 0.85
 DEFAULT_SUB_PROB = 0.15
 SUB_MINS = 18.0
@@ -131,13 +139,18 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
             prior = 0.5 * (prior + price_prior) if pd.notna(full) else price_prior
             k_cur = ARRIVAL_WEIGHT_K
         # Evidence: the recency window at the current club (which already
-        # excludes an old club's games), blended with the season rate.
+        # excludes an old club's games), blended with the season rate. The
+        # RATE stays weighted to the last six games (form can dip, a rival can
+        # arrive in January); what grows with the season is the CONFIDENCE in
+        # it, so last season's prior fades as the club's games mount instead
+        # of keeping a fifth of the say all year. (2025-26 backtest: better
+        # in every phase, including after a rival starter emerges; VALIDATION.md)
         f = frm.loc[pid] if frm is not None and pid in frm.index else None
         if f is not None and pd.notna(f["win_rate"]) and f["club_games"] > 0:
             n_cur = int(f["club_games"]) if pid not in moves else int(moves[pid]["games_since"])
             season_rate = min(starts_cur / n_cur, 1.0) if n_cur > 0 else f["win_rate"]
             cur_rate = WINDOW_SHARE * float(f["win_rate"]) + (1 - WINDOW_SHARE) * season_rate
-            n_eff = min(float(f["win_n"]), float(n_cur)) if n_cur > 0 else 0.0
+            n_eff = float(n_cur)
         elif n_cur > 0:
             cur_rate = min(starts_cur / n_cur, 1.0)
             n_eff = float(n_cur)
@@ -164,6 +177,14 @@ def build_minutes(ds: Dataset, last_rates: pd.DataFrame,
             mins_per_start = DEFAULT_MINS_PER_START
         else:  # a thin season's substitution pattern is weak evidence too
             mins_per_start = rel * mins_per_start + (1 - rel) * DEFAULT_MINS_PER_START
+        # This season's pattern, from the starts in the recency window at the
+        # current club: a role change shows up here (a striker now going 90,
+        # a winger now hooked on 65) but one or two starts are noise, so last
+        # season keeps the weight of MPS_PRIOR_STARTS starts.
+        if (f is not None and pd.notna(f.get("win_mps")) and float(f.get("win_starts", 0)) > 0):
+            ns = float(f["win_starts"])
+            mins_per_start = ((ns * float(f["win_mps"]) + MPS_PRIOR_STARTS * mins_per_start)
+                              / (ns + MPS_PRIOR_STARTS))
         p60_start = p["p60_given_start_last"]
         if pd.isna(p60_start):
             p60_start = DEFAULT_P60_GIVEN_START

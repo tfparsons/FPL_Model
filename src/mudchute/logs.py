@@ -5,7 +5,9 @@ games still reads as a starter in October. The window here weights the
 current club's last WINDOW games with geometric decay, so the latest games
 dominate, and it reads two things season totals can't: an absence streak
 (a regular who vanished, i.e. injury/suspension) and his return, which is
-eased in rather than snapped back.
+eased in rather than snapped back. It also reads how long he plays when he
+starts (the window's starts, decay-weighted), so the minutes model can
+blend this season's pattern with last season's.
 """
 
 from __future__ import annotations
@@ -41,7 +43,8 @@ def build_game_logs(ds) -> pd.DataFrame:
 
 
 def recent_form(ds, logs: pd.DataFrame) -> pd.DataFrame:
-    """Per player: windowed start rate at the current club, absence/return state."""
+    """Per player: windowed start rate and minutes per start at the current club,
+    absence/return state."""
     fx = ds.fixtures
     done = fx[(fx["finished"] == True) & fx["kickoff_time"].notna()]  # noqa: E712
     by_team: dict[int, list[int]] = {}
@@ -56,14 +59,22 @@ def recent_form(ds, logs: pd.DataFrame) -> pd.DataFrame:
         pid, team = int(p["id"]), int(p["team"])
         games = by_team.get(team, [])
         recent = games[-WINDOW:]
-        # weighted start rate over the club's recent games (absent = 0)
+        # weighted start rate over the club's recent games (absent = 0), and
+        # weighted minutes per start over the games he started in that window
         num = den = 0.0
+        mps_num = mps_den = 0.0
+        win_starts = 0
         for age, fid in enumerate(reversed(recent)):
             w = DECAY ** age
-            st, _ = played.get((pid, fid), (0, 0))
+            st, mins = played.get((pid, fid), (0, 0))
             num += w * st
             den += w
+            if st:
+                mps_num += w * mins
+                mps_den += w
+                win_starts += 1
         win_rate = num / den if den else float("nan")
+        win_mps = mps_num / mps_den if mps_den else float("nan")
         # absence streak / return detection over the club's full season
         featured = [played.get((pid, f), (0, 0))[1] > 0 for f in games]
         started = [played.get((pid, f), (0, 0))[0] for f in games]
@@ -86,6 +97,7 @@ def recent_form(ds, logs: pd.DataFrame) -> pd.DataFrame:
         if gap >= ABSENCE_MIN and regular_before and 0 < back <= RETURN_GAMES:
             returning, return_games = True, back
         rows.append({"id": pid, "win_rate": win_rate, "win_n": den,
+                     "win_mps": win_mps, "win_starts": win_starts,
                      "absent_streak": absent_streak,
                      "returning": returning, "return_games": return_games,
                      "club_games": len(games)})
